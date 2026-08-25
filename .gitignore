@@ -1,0 +1,21 @@
+# 화면 캡처는 올리지 않는다. 설치기가 바로 가기 아이콘으로 쓰는 그림 한 장만 예외다.
+*.png
+!claudecode-color.png
+
+# 윈도 탐색기가 남기는 파일
+Thumbs.db
+desktop.ini
+
+# 인증서는 올리지 않는다. 회사 루트는 원래 이 폴더에 없어야 하고,
+# 공용 루트 목록도 각 PC에서 채운다.
+certs/*.crt
+certs/*.cer
+certs/*.pem
+
+# 회사 보안 구성이 적힌 문서는 올리지 않는다.
+# 어느 사이트가 가로채이는지, 회사 루트 인증서를 어떻게 내보내는지가 적혀 있다.
+docs/DESIGN-NOTES.md
+certs/README.txt
+
+# 파이썬 캐시
+__pycache__/
