@@ -257,6 +257,15 @@ $script:RetiredPlugins = @(
     'frontend-design@claude-code-plugins'
 )
 
+# The one skill this installer used to copy into the personal skills folder
+# and now installs as a plugin instead. A personal copy left behind loads
+# twice under the same name, so phase 8 removes it - but only once the
+# replacing plugin is confirmed on disk, and only if the folder holds nothing
+# but the SKILL.md this installer wrote. A single record, not a list: the
+# other shipped skill (register-corp-certs) stays a personal skill by design.
+# ReplacedBy names the plugin id phase 8 waits for.
+$script:RetiredSkill = @{ Name = 'document-formats'; ReplacedBy = 'kw-doc-formats@kw-doc-formats' }
+
 # ---------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------
@@ -827,6 +836,39 @@ function Install-ClaudeSkills {
     }
 
     return @{ Status = 'ok'; Installed = $installed; Unchanged = $unchanged; Empty = $empty }
+}
+
+# Removes the personal copy of a skill that now ships as a plugin. Status is
+# absent (nothing there), removed, kept (the folder holds more than SKILL.md,
+# so it is somebody's work), or skipped (WhatIf). The SKILL.md is copied to
+# BackupDir before the folder goes, as every other file this installer
+# rewrites is backed up. Only the named folder is ever removed; DestRoot is
+# never touched.
+function Remove-RetiredClaudeSkill {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][string]$DestRoot,
+        [Parameter(Mandatory)][string]$BackupDir,
+        [switch]$WhatIfOnly
+    )
+    $dir = Join-Path $DestRoot $Name
+    if (-not (Test-Path $dir)) { return @{ Status = 'absent'; Detail = "no old copy at $dir" } }
+
+    $files   = @(Get-ChildItem -LiteralPath $dir -Recurse -Force -File)
+    $subdirs = @(Get-ChildItem -LiteralPath $dir -Recurse -Force -Directory)
+    $onlySkill = ($subdirs.Count -eq 0) -and ($files.Count -eq 1) -and ($files[0].Name -eq 'SKILL.md')
+    if (-not $onlySkill) {
+        return @{ Status = 'kept'; Detail = "$dir holds more than the SKILL.md this installer wrote; left in place" }
+    }
+
+    $backup = Join-Path $BackupDir "$Name.SKILL.md.bak"
+    if ($WhatIfOnly) {
+        return @{ Status = 'skipped'; Detail = "[WhatIf] would back up $($files[0].FullName) to $backup and remove $dir" }
+    }
+    if (-not (Test-Path $BackupDir)) { New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null }
+    Copy-Item -LiteralPath $files[0].FullName -Destination $backup -Force
+    Remove-Item -LiteralPath $dir -Recurse -Force
+    return @{ Status = 'removed'; Detail = "old copy removed: $dir (backup at $backup)"; Backup = $backup }
 }
 
 # Which PowerShell Claude Code runs cannot be set. There is no settings key for

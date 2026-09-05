@@ -645,6 +645,32 @@ Assert 'without WhatIf the skills are written' ((@(Get-ChildItem -Path $skillDes
 $r2 = Install-ClaudeSkills -SourceDir (Join-Path $Root 'skills') -DestRoot $skillDest
 Assert 'a second skill install reports them unchanged' (@($r2.Unchanged).Count -eq @($r.Installed).Count)
 
+Write-Host '--- the old personal copy of document-formats is retired ---'
+# The skill now arrives as a plugin. A personal copy left behind loads twice
+# under the same name. The installer only ever wrote SKILL.md, so a folder
+# holding anything else is somebody's work and stays.
+Assert 'the retired skill names the plugin that replaces it' ($script:RetiredSkill.Name -eq 'document-formats' -and $script:RetiredSkill.ReplacedBy -eq 'kw-doc-formats@kw-doc-formats')
+$oldRoot = Join-Path $Tmp 'old-skills'
+$oldDir  = Join-Path $oldRoot 'document-formats'
+$bakDir  = Join-Path $Tmp 'bak'
+New-Item -ItemType Directory -Force -Path $oldDir | Out-Null
+[IO.File]::WriteAllText((Join-Path $oldDir 'SKILL.md'), 'old body', [Text.UTF8Encoding]::new($false))
+$r0 = Remove-RetiredClaudeSkill -Name 'document-formats' -DestRoot $oldRoot -BackupDir $bakDir -WhatIfOnly
+Assert 'WhatIf reports the removal and leaves the folder' ($r0.Status -eq 'skipped' -and (Test-Path $oldDir) -and -not (Test-Path $bakDir))
+$r1 = Remove-RetiredClaudeSkill -Name 'document-formats' -DestRoot $oldRoot -BackupDir $bakDir
+Assert 'a folder holding only SKILL.md is removed' ($r1.Status -eq 'removed' -and -not (Test-Path $oldDir))
+Assert 'and its SKILL.md is backed up first' ((Test-Path (Join-Path $bakDir 'document-formats.SKILL.md.bak')) -and ([IO.File]::ReadAllText((Join-Path $bakDir 'document-formats.SKILL.md.bak')) -eq 'old body'))
+Assert 'the skills root itself is untouched' (Test-Path $oldRoot)
+$r2 = Remove-RetiredClaudeSkill -Name 'document-formats' -DestRoot $oldRoot -BackupDir $bakDir
+Assert 'a second run finds nothing and does nothing' ($r2.Status -eq 'absent')
+New-Item -ItemType Directory -Force -Path $oldDir | Out-Null
+[IO.File]::WriteAllText((Join-Path $oldDir 'SKILL.md'), 'old body', [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $oldDir 'notes.md'), 'mine', [Text.UTF8Encoding]::new($false))
+$r3 = Remove-RetiredClaudeSkill -Name 'document-formats' -DestRoot $oldRoot -BackupDir $bakDir
+Assert 'a folder with other files is kept' ($r3.Status -eq 'kept' -and (Test-Path (Join-Path $oldDir 'notes.md')))
+$r4 = Remove-RetiredClaudeSkill -Name 'document-formats' -DestRoot (Join-Path $Tmp 'no-such-root') -BackupDir $bakDir
+Assert 'no skills folder at all is absent, not an error' ($r4.Status -eq 'absent')
+
 Write-Host '--- the pinned python goes to the front of the user PATH ---'
 # The regression this catches: on a fresh Windows the only `python` on PATH is
 # the Microsoft Store alias stub, so the libraries land in the pinned version
