@@ -38,16 +38,18 @@
 | `superpowers` | 복잡한 일회성 업무를 끌고 갈 때 실제로 도움이 되는 것이 확인됐다 |
 | `playwright` | 브라우저 자동화다. 사내 웹에서 자료를 받아 오는 경우에 쓴다 |
 | `frontend-design` | 대시보드 수요 때문이다. 비개발자가 자기 결과물을 남에게 보여 주는 가장 깔끔한 수단이 웹 화면이고, 사내에서 본부별 대시보드로 공유되고 있다 |
-| `kw-doc-formats` | 사내 문서 형식 처리 스킬 `kw-doc-formats:document-formats`다. 이전 판은 이 스킬을 개인 스킬 폴더에 복사했는데, 이제 플러그인으로 와서 고친 것이 자동 갱신으로 따라온다. 서드파티 마켓플레이스는 자동 갱신이 기본으로 꺼져 있어 설치기가 이 마켓플레이스에만 켠다 |
+| `kw-doc-formats` | 사내 문서 형식 처리 스킬 `kw-doc-formats:document-formats`다. 이전 판은 이 스킬을 개인 스킬 폴더에 복사했는데, 이제 플러그인으로 와서 고친 것이 자동 갱신으로 따라온다. 자동 갱신을 어디에 어떻게 켜는지는 아래 「고쳐지는 설정 파일」에 있다 |
 
 목록의 정본은 `setup.ps1`의 `$script:Plugins`다. `settings.json`의 선언과 CLI 설치가 모두 그
 한 곳에서 생성되므로 둘이 어긋날 수 없다. 어느 마켓플레이스에서 오는지도 거기 적혀 있다.
 
 ## 고쳐지는 설정 파일
 
-사용자 파일 네 개를 고친다. `settings.json`과 `CLAUDE.md`, 윈도우 터미널의 설정, 그리고
-클로드 코드의 플러그인 레지스트리 `known_marketplaces.json`이다. 프로젝트 설정과 회사 관리
-정책은 별개 파일이라 건드리지 않는다.
+사용자 파일 다섯 개를 고친다. `CLAUDE.md`와 윈도우 터미널의 설정, `settings.json`, 클로드
+코드의 플러그인 레지스트리 `known_marketplaces.json`, 그리고 curl 설정 파일 `.curlrc`다. 앞의
+넷은 고치기 전 사본을 `.bak`으로 남기고 `.curlrc`만 남기지 않는다. `.curlrc`에 무엇을 왜
+덧붙이는지는 아래 「놓이는 파일과 환경변수」 표에 있다. 프로젝트 설정과 회사 관리 정책은 별개
+파일이라 건드리지 않는다.
 
 `CLAUDE.md`는 통째로 덮지 않는다. `# BEGIN AX 설치`와 `# END AX 설치` 사이만 바꾸고 그 바깥에
 사용자가 쓴 것은 그대로 둔다. 고치기 전에 `CLAUDE.md.bak`으로 사본을 뜬다. 관리 영역 안을 손으로
@@ -86,7 +88,7 @@ Git Bash 프로필이 생겨도 같은 글꼴로 열린다.
 | PATH 추가 | `%USERPROFILE%\.local\bin` | `claude`를 이름만으로 실행할 수 있게 한다 |
 | PATH 맨 앞 | 고정한 파이썬 3.12 폴더와 그 아래 `Scripts` | 새 윈도우의 사용자 PATH에는 진짜 파이썬이 아닌 마이크로소프트 스토어 껍데기가 들어 있다. 그것이 먼저 대답하면 라이브러리를 넣은 3.12가 안 잡히므로 앞으로 옮긴다. 이미 앞에 있으면 건드리지 않는다 |
 | 바로 가기 `PowerShell 7` | 시작 메뉴와 바탕화면 | `wt.exe -p "PowerShell"`을 연다. 아이콘은 함께 실리는 `claudecode-color.png`를 구운 것이고, 그 그림이나 굽는 기능이 없을 때만 `pwsh.exe`의 것으로 물러선다. 윈도우 11은 스크립트가 작업 표시줄에 고정하는 것을 막아 두었으므로, 그 한 번은 바로 가기를 오른쪽 클릭해서 직접 한다 |
-| 스킬 `register-corp-certs` | 개인 스킬 폴더 | 컨테이너 인증서를 다룬다. 이전 판이 함께 두던 `document-formats`는 플러그인으로 옮겨 갔고, 남은 사본은 `SKILL.md`를 `%LOCALAPPDATA%\kw-install\document-formats.SKILL.md.bak`으로 옮긴 뒤 지운다 |
+| 스킬 `register-corp-certs` | 개인 스킬 폴더 | 컨테이너 인증서를 다룬다. 이전 판이 함께 두던 `document-formats`는 플러그인으로 옮겨 갔다. 남은 사본은 두 조건이 모두 맞을 때만 걷어낸다. 플러그인 `kw-doc-formats`가 실제로 깔린 것이 확인됐고, 그 폴더에 설치기가 쓴 `SKILL.md` 말고 다른 파일이 없어야 한다. 걷어낼 때는 `SKILL.md`를 `%LOCALAPPDATA%\kw-install\document-formats.SKILL.md.bak`으로 옮긴 뒤 지운다. 조건이 어긋나면 그대로 두고 마무리 화면에 왜 남겼는지 적는다 |
 | 바로 가기 아이콘 파일 | `%LOCALAPPDATA%\kw-install` | `claudecode-color.png`를 구운 `.ico`가 여기 놓인다. 파일 이름에 그림 내용의 해시가 붙는데, 윈도우가 아이콘을 경로 단위로 기억해 같은 이름이면 옛 그림을 계속 그리기 때문이다 |
 | 도커 훅 스크립트 | `%LOCALAPPDATA%\corp-certs` | 위 `hooks.PreToolUse`가 이 파일을 부른다 |
 | 개인 기억 블록 | `%USERPROFILE%\.claude\CLAUDE.md` | 매 세션 실리는 지침이다. 이 PC에서 실제로 겪은 문제 — 발표자료 글자 윤곽선과 긴 PDF 읽기 — 를 스킬을 열지 않아도 보이게 둔다. 마커 사이만 바꾸고 이전 판은 `CLAUDE.md.bak`에 남긴다 |

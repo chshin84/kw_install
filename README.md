@@ -103,10 +103,16 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -WhatIfOnly
 ## 이 PC에 생기는 변화
 
 프로그램과 파이썬 라이브러리, 그리고 클로드 코드의 플러그인과 스킬이 들어온다. 사용자 파일은
-다섯을 고친다 — 클로드 코드의 `settings.json` 과 `CLAUDE.md`, 클로드 코드의 플러그인
-레지스트리 `known_marketplaces.json`, 윈도우 터미널의 설정, 그리고 curl 설정 파일인
-`.curlrc` 다. 앞의 넷은 통째로 덮지 않고 필요한 값만 고치며 고치기 전 사본을 `.bak` 으로
-남긴다. `.curlrc` 에는 줄을 덧붙이기만 하고 사본은 남기지 않는다.
+다섯을 고친다.
+
+- 클로드 코드의 `settings.json`
+- 클로드 코드의 `CLAUDE.md`
+- 클로드 코드의 플러그인 레지스트리 `known_marketplaces.json`
+- 윈도우 터미널의 설정
+- curl 설정 파일 `.curlrc`
+
+`.curlrc` 를 뺀 넷은 통째로 덮지 않고 필요한 값만 고치며 고치기 전 사본을 `.bak` 으로 남긴다.
+`.curlrc` 에는 줄을 덧붙이기만 하고 사본은 남기지 않는다.
 
 무엇을 왜 넣었는지, 설정 파일의 어느 줄이 어떻게 바뀌는지, 어떤 파일과 환경변수가 어디에
 놓이는지는 `docs\CHANGES-ON-THIS-PC.md` 에 항목별로 적혀 있다.
