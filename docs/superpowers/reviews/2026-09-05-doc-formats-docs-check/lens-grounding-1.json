@@ -1,0 +1,6 @@
+{"lens":"grounding","issues":[
+{"where":"README 「이 PC에 생기는 변화」 / CHANGES 「고쳐지는 설정 파일」","type":"contradiction","claim":"고치는 사용자 파일 수가 다섯과 넷으로 갈린다. 차이는 .curlrc다"},
+{"where":"CHANGES 「고쳐지는 설정 파일」 / 같은 문서 .curlrc 행","type":"contradiction","claim":".curlrc를 셈에서 빼 놓고 뒤에서 그 파일의 백업 예외를 설명한다"},
+{"where":"CHANGES 「놓이는 파일과 환경변수」 스킬 행","type":"omission","claim":"옛 사본을 지우는 두 조건(플러그인 설치 확인, 폴더에 SKILL.md만)이 빠졌다"},
+{"where":"README 「덮이지 않는 것」 브라우저 자동화 항목","type":"unsupported","claim":"python -m playwright install chromium을 이름 대는데 파이썬 playwright 패키지가 requirements.txt에 없다"}],
+"notes":"확인해 맞은 것: 플러그인 다섯, 단계 열과 화면 번호 0/9~9/9, 종료 코드 0·1·2·3·9, 환경변수 4종, 파이썬 라이브러리 일곱, 프로그램 넷. 옛 동작을 주장하는 문장은 없다. 문서 밖 관측: setup.ps1 머리말 단계 목록이 낡았고(Y/N 질문, Poppler 누락), $ClaudeJsonPath는 죽은 파라미터다."}
