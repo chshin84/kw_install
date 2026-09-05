@@ -302,6 +302,45 @@ Merge-ClaudeSettings -SettingsPath $skip -SkipPlugins | Out-Null
 $as = Get-Content $skip -Raw | ConvertFrom-Json
 Assert '-SkipPlugins writes no plugin keys' ($null -eq $as.PSObject.Properties['enabledPlugins'])
 
+Write-Host '--- a plugin counts as installed only when the CLI recorded it ---'
+# The marketplace registry is not proof: `marketplace add` can succeed while
+# `plugin install` fails, and a repo name can contain the marketplace name
+# (KiwoomAX/KW-doc-formats holds kw-doc-formats, and -match ignores case).
+$inst = Join-Path $Tmp 'installed_plugins.json'
+@'
+{ "version": 2, "plugins": { "kw-doc-formats@kw-doc-formats": [ { "scope": "user", "installPath": "x" } ] } }
+'@ | Set-Content -LiteralPath $inst
+Assert 'a recorded plugin is installed' (Test-PluginInstalled -RegistryPath $inst -Id 'kw-doc-formats@kw-doc-formats')
+Assert 'an unrecorded plugin is not' (-not (Test-PluginInstalled -RegistryPath $inst -Id 'playwright@claude-plugins-official'))
+Assert 'a missing file means not installed' (-not (Test-PluginInstalled -RegistryPath (Join-Path $Tmp 'nope.json') -Id 'x@y'))
+'not json' | Set-Content -LiteralPath (Join-Path $Tmp 'bad.json')
+Assert 'a file that is not JSON means not installed' (-not (Test-PluginInstalled -RegistryPath (Join-Path $Tmp 'bad.json') -Id 'x@y'))
+
+Write-Host '--- auto-update is switched on in the marketplace registry ---'
+$reg = Join-Path $Tmp 'known_marketplaces.json'
+$regText = @'
+{
+  "claude-plugins-official": { "source": { "source": "github", "repo": "anthropics/claude-plugins-official" }, "installLocation": "C:\\x", "lastUpdated": "2026-09-05T09:08:52.295Z" },
+  "kw-doc-formats": { "source": { "source": "github", "repo": "KiwoomAX/KW-doc-formats" }, "installLocation": "C:\\y", "lastUpdated": "2026-09-05T09:08:53.617Z" },
+  "theirs": { "source": { "source": "github", "repo": "someone/theirs" }, "autoUpdate": false }
+}
+'@
+[IO.File]::WriteAllText($reg, $regText, [Text.UTF8Encoding]::new($false))
+$s1 = Set-MarketplaceAutoUpdate -RegistryPath $reg -Marketplace 'kw-doc-formats'
+$after = Get-Content $reg -Raw | ConvertFrom-Json
+Assert 'the key is set on the named marketplace' ($s1.Status -eq 'set' -and $after.'kw-doc-formats'.autoUpdate -eq $true)
+Assert 'a backup is left beside the registry' (Test-Path "$reg.bak")
+Assert 'every entry survives the rewrite' (@($after.PSObject.Properties.Name).Count -eq 3)
+Assert 'other marketplaces are untouched' ($null -eq $after.'claude-plugins-official'.PSObject.Properties['autoUpdate'])
+Assert 'the timestamp strings survive the rewrite' (([IO.File]::ReadAllText($reg)) -match '2026-09-05T09:08:52\.295Z')
+$s2 = Set-MarketplaceAutoUpdate -RegistryPath $reg -Marketplace 'kw-doc-formats'
+Assert 'a second call changes nothing' ($s2.Status -eq 'unchanged')
+$s3 = Set-MarketplaceAutoUpdate -RegistryPath $reg -Marketplace 'theirs'
+$after3 = Get-Content $reg -Raw | ConvertFrom-Json
+Assert 'a value the user set is not overwritten' ($s3.Status -eq 'unchanged' -and $after3.theirs.autoUpdate -eq $false)
+$s4 = Set-MarketplaceAutoUpdate -RegistryPath $reg -Marketplace 'unknown'
+Assert 'an unregistered marketplace is reported, not added' ($s4.Status -eq 'failed')
+
 Write-Host '--- repairing a machine that still prompts ---'
 # ask beats allow in Claude Code. If our three patterns are not swept out of
 # ask, adding them to allow changes nothing and the prompts keep coming.

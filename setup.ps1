@@ -1322,6 +1322,49 @@ function Merge-ClaudeSettings {
 }
 
 
+# The CLI records every install it completed in installed_plugins.json, one
+# key per plugin id. That file is the only evidence used: a marketplace can be
+# added while the install fails, and a repo name can contain a marketplace
+# name (KiwoomAX/KW-doc-formats holds kw-doc-formats, and -match ignores
+# case), so the marketplace registry proves nothing about the plugin.
+function Test-PluginInstalled {
+    param([Parameter(Mandatory)][string]$RegistryPath, [Parameter(Mandatory)][string]$Id)
+    if (-not (Test-Path $RegistryPath)) { return $false }
+    try { $reg = [IO.File]::ReadAllText($RegistryPath) | ConvertFrom-Json -AsHashtable -Depth 20 }
+    catch { return $false }
+    if ($reg -isnot [hashtable] -or $reg['plugins'] -isnot [hashtable]) { return $false }
+    return [bool]$reg['plugins'].ContainsKey($Id)
+}
+
+# Third-party marketplaces have auto-update off by default; this switches it
+# on for one named marketplace in the registry the /plugin toggle writes.
+# Only that entry is touched, a value already present - true or false - is
+# the user's and stays, a .bak is left, and the rewritten text is parsed
+# again before it replaces the file. Not reached under -WhatIfOnly: the
+# caller never installs then, so there is nothing to switch on.
+function Set-MarketplaceAutoUpdate {
+    param(
+        [Parameter(Mandatory)][string]$RegistryPath,
+        [Parameter(Mandatory)][string]$Marketplace
+    )
+    if (-not (Test-Path $RegistryPath)) { return @{ Status = 'failed'; Detail = "no registry at $RegistryPath" } }
+    try { $reg = [IO.File]::ReadAllText($RegistryPath) | ConvertFrom-Json -AsHashtable -Depth 20 }
+    catch { return @{ Status = 'failed'; Detail = "registry is not JSON: $($_.Exception.Message)" } }
+    if ($reg -isnot [hashtable] -or -not $reg.ContainsKey($Marketplace) -or $reg[$Marketplace] -isnot [hashtable]) {
+        return @{ Status = 'failed'; Detail = "$Marketplace is not in $RegistryPath" }
+    }
+    if ($reg[$Marketplace].ContainsKey('autoUpdate')) {
+        return @{ Status = 'unchanged'; Detail = "autoUpdate already $($reg[$Marketplace]['autoUpdate']) for $Marketplace" }
+    }
+    $reg[$Marketplace]['autoUpdate'] = $true
+    $json = $reg | ConvertTo-Json -Depth 20
+    try { $null = $json | ConvertFrom-Json }
+    catch { return @{ Status = 'failed'; Detail = 'rewritten registry did not parse; nothing written' } }
+    Copy-Item -LiteralPath $RegistryPath -Destination "$RegistryPath.bak" -Force
+    [IO.File]::WriteAllText($RegistryPath, $json, [Text.UTF8Encoding]::new($false))
+    return @{ Status = 'set'; Detail = "autoUpdate on for $Marketplace (backup at $RegistryPath.bak)" }
+}
+
 # The plugin cache and marketplace registry live outside settings.json, in
 # ~\.claude\plugins. Only the CLI populates them, so declaring the keys is not
 # the same as having the plugin on disk.
@@ -1338,7 +1381,9 @@ function Install-ClaudePlugins {
         $blocked = 'git is not available, and a marketplace is cloned with git.'
     }
 
-    $registry = Join-Path $env:USERPROFILE '.claude/plugins/known_marketplaces.json'
+    $pluginsDir = Join-Path $env:USERPROFILE '.claude/plugins'
+    $installed  = Join-Path $pluginsDir 'installed_plugins.json'
+    $registry   = Join-Path $pluginsDir 'known_marketplaces.json'
     $results = @()
     foreach ($pl in $script:Plugins) {
         if ($blocked) {
@@ -1351,15 +1396,21 @@ function Install-ClaudePlugins {
         }
         try {
             # Adding a marketplace that is already known is a success, not a
-            # fault, so neither call's exit code is trusted. The registry is.
+            # fault, so neither call's exit code is trusted. installed_plugins.json is.
             $out  = & $ClaudeExe plugin marketplace add $pl.Repo 2>&1 | Out-String
             $out += & $ClaudeExe plugin install $pl.Id 2>&1 | Out-String
         } catch {
             $results += @{ Id = $pl.Id; Status = 'failed'; Detail = $_.Exception.Message }
             continue
         }
-        if ((Test-Path $registry) -and ([IO.File]::ReadAllText($registry) -match [regex]::Escape($pl.Marketplace))) {
-            $results += @{ Id = $pl.Id; Status = 'installed'; Detail = "$($pl.Marketplace) registered in $registry" }
+        if (Test-PluginInstalled -RegistryPath $installed -Id $pl.Id) {
+            $detail = "recorded in $installed"
+            if ($pl.AutoUpdate) {
+                $au = Set-MarketplaceAutoUpdate -RegistryPath $registry -Marketplace $pl.Marketplace
+                $detail += "; $($au.Detail)"
+                if ($au.Status -eq 'failed') { Add-Warning "auto-update not enabled for $($pl.Marketplace) - $($au.Detail)" }
+            }
+            $results += @{ Id = $pl.Id; Status = 'installed'; Detail = $detail }
         } else {
             $results += @{ Id = $pl.Id; Status = 'failed'; Detail = $out.Trim() }
         }
