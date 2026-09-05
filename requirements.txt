@@ -29,6 +29,5 @@ markitdown[docx,pptx,pdf,xlsx,xls]
 chardet
 
 # 표 형태 데이터를 계산하고 정리한다.
-# 3.0 미만으로 묶는 이유는 한국거래소 데이터를 가져오는 pykrx 가
-# pandas<3.0 을 요구하기 때문이다. 제약을 풀면 pykrx 가 깨진다.
+# 판을 3.0 미만으로 묶는다. 이 제약은 그대로 둔다.
 pandas<3.0
