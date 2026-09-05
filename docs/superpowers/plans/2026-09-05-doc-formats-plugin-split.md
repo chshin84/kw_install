@@ -18,7 +18,7 @@
 - 새 레포의 `.claude-plugin/plugin.json`의 `description`과 `marketplace.json`의 `plugins[0].description`은 글자 그대로 같다.
 - 사용자 파일을 고칠 때는 사용자가 넣어 둔 값을 덮지 않고, `.bak`을 남기고, 다시 파싱해 유효할 때만 쓴다.
 - 기준선: 지금 `tests/test_setup.ps1`은 PASS 258, FAIL 5다. 다섯 실패는 모두 `certs/combined_cacert.pem`이 레포에 없어서 나는 것이며(`.gitignore`) 이 작업과 무관하다. 작업 뒤에도 그 다섯만 실패해야 한다.
-- Task는 번호 순서대로 돈다. Task 3(레포 공개)이 끝나기 전에 Task 8(설치기 실행)을 돌리지 않는다. Task 8 Step 0이 이를 확인한다.
+- Task는 번호 순서대로 돈다. Task 3(레포 공개)이 끝나기 전에 Task 8(드라이런)을 돌리지 않는다. Task 8 Step 0이 이를 확인한다. 이 PC에서 설치기를 실제로 돌리지 않는다. 사용자 결정이다.
 - 커밋 메시지 끝에 아래 두 줄을 붙인다.
   ```
   Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
@@ -339,7 +339,7 @@ git -C 'D:\projects\KW-doc-formats' commit -m "엑셀을 만들 때 글자 크�
 
 **Interfaces:**
 - Consumes: Task 1·2의 로컬 레포.
-- Produces: 퍼블릭 레포 `KiwoomAX/KW-doc-formats`. Task 8의 설치기가 이것을 clone한다. 이 Task는 이 PC를 **깔지 않은 상태**로 되돌려 두고 끝난다. Task 8이 첫 설치 경로를 실제로 밟기 위해서다.
+- Produces: 퍼블릭 레포 `KiwoomAX/KW-doc-formats`. 이 PC에는 플러그인이 깔린 채로 끝난다. 사용자가 이 PC에서는 설치기를 드라이런만 하기로 정했으므로, 이 Task의 설치가 이 PC가 플러그인을 받는 유일한 길이다.
 
 - [ ] **Step 1: 레포를 만들고 푸시한다**
 
@@ -358,16 +358,9 @@ claude plugin install kw-doc-formats@kw-doc-formats
 ```
 Expected: 마지막 줄이 `True`.
 
-- [ ] **Step 3: 깔지 않은 상태로 되돌린다**
+- [ ] **Step 3: 이 PC에 남는 것을 적어 둔다**
 
-마켓플레이스를 지우면 거기서 깔린 플러그인도 함께 내려간다.
-
-```powershell
-claude plugin marketplace remove kw-doc-formats
-(Get-Content "$env:USERPROFILE\.claude\plugins\installed_plugins.json" -Raw | ConvertFrom-Json).plugins.PSObject.Properties.Name -contains 'kw-doc-formats@kw-doc-formats'
-(Get-Content "$env:USERPROFILE\.claude\plugins\known_marketplaces.json" -Raw | ConvertFrom-Json).PSObject.Properties.Name -contains 'kw-doc-formats'
-```
-Expected: 두 줄 다 `False`. 그래야 Task 8이 설치기의 첫 설치를 본다.
+이 PC의 `~/.claude/skills/document-formats/`(이전 판 설치기가 복사한 개인 사본)는 그대로 둔다. 설치기를 실제로 돌리지 않기로 했으므로 옛 사본 제거는 이 PC에서 일어나지 않는다. 플러그인 스킬과 개인 스킬이 같은 이름으로 둘 다 실리는 상태이며, 최종 보고에 이 사실과 지우는 방법(`Remove-Item -Recurse "$env:USERPROFILE\.claude\skills\document-formats"`)을 적는다.
 
 ---
 
@@ -951,67 +944,42 @@ git -C 'D:\projects\kw_install' commit -m "document-formats 폴더를 걷어내�
 
 ---
 
-### Task 8: 이 PC에서 돌려 확인
+### Task 8: 이 PC에서 드라이런으로 확인
 
 **Files:** 없음
 
 **Interfaces:**
-- Consumes: Task 3의 퍼블릭 레포(깔지 않은 상태), Task 4~7의 `setup.ps1`.
+- Consumes: Task 3의 퍼블릭 레포, Task 4~7의 `setup.ps1`.
 - Produces: 없음.
 
-> 🔴 **사용자 결정이 걸려 있다.** 설치기를 통째로 돌리면 7단계가 이 PC의 `~/.claude/CLAUDE.md`에 AX 설치 블록("저는 개발자가 아닙니다...")을 새로 넣고 `settings.json`의 `permissions.defaultMode`를 `auto`로 고친다. 이 PC의 `CLAUDE.md`에는 지금 그 블록이 없다. 아래 Step 2는 그 부작용을 피하는 방식(`-AsModule`로 8단계 함수만 부른다)으로 적었다. 사용자가 통째로 돌리기를 택하면 Step 2를 `pwsh -NoProfile -ExecutionPolicy Bypass -File D:\projects\kw_install\setup.ps1 -SkipPrograms -SkipPythonLibs -SkipClaudeInstall -SkipHooks -SkipTerminal -SkipSkills`로 바꾸고, Step 3에 `CLAUDE.md`와 `settings.json`의 `.bak`이 생겼는지를 더한다.
+사용자가 이 PC에서는 설치기를 **드라이런만** 하기로 정했다. 설치기를 통째로 돌리면 7단계가 이 PC의 `~/.claude/CLAUDE.md`에 AX 설치 블록을 넣고 `settings.json`을 auto 모드로 고치는데, 그 문안이 이 사용자의 전역 지침과 어긋나기 때문이다. 플러그인이 실제로 깔리고 옛 사본이 걷히고 자동 갱신이 켜지는지는 다른 PC에서 확인한다.
 
 - [ ] **Step 0: 선행 조건을 확인한다**
 
 ```powershell
 gh repo view KiwoomAX/KW-doc-formats --json visibility --jq .visibility
-(Get-Content "$env:USERPROFILE\.claude\plugins\known_marketplaces.json" -Raw | ConvertFrom-Json).PSObject.Properties.Name -contains 'kw-doc-formats'
-$before = @((Get-Content "$env:USERPROFILE\.claude\plugins\known_marketplaces.json" -Raw | ConvertFrom-Json).PSObject.Properties.Name).Count
-$before
 ```
-Expected: `PUBLIC`, `False`(Task 3이 되돌려 두었다), 그리고 항목 수 하나. 첫 줄이 `PUBLIC`이 아니면 Task 3이 안 끝난 것이므로 멈춘다.
+Expected: `PUBLIC`. 아니면 Task 3이 안 끝난 것이므로 멈춘다.
 
 - [ ] **Step 1: 드라이런**
 
 ```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -File D:\projects\kw_install\setup.ps1 -WhatIfOnly 2>&1 | Select-String 'kw-doc-formats|document-formats|Plugins'
+pwsh -NoProfile -ExecutionPolicy Bypass -File D:\projects\kw_install\setup.ps1 -WhatIfOnly 2>&1 | Select-String 'kw-doc-formats|document-formats|Plugins|WhatIf'
 ```
-Expected: `[WhatIf] would add KiwoomAX/KW-doc-formats and install kw-doc-formats@kw-doc-formats`, 옛 사본이 있으면 `[WhatIf] would back up ... and remove ...`, 마무리 요약의 `Plugins` 줄에 다섯 이름.
+Expected: `[WhatIf] would add KiwoomAX/KW-doc-formats and install kw-doc-formats@kw-doc-formats`, 이 PC에 옛 사본이 있으므로 `[WhatIf] would back up ...\document-formats\SKILL.md to ...\kw-install\document-formats.SKILL.md.bak and remove ...`, 마무리 요약의 `Plugins` 줄에 다섯 이름. 종료 코드 0.
 
-- [ ] **Step 2: 8단계 함수를 실제로 돌린다**
-
-```powershell
-pwsh -NoProfile -ExecutionPolicy Bypass -Command {
-  . 'D:\projects\kw_install\setup.ps1' -AsModule
-  $script:Warnings = [Collections.Generic.List[string]]::new()
-  $claude = Join-Path $env:USERPROFILE '.local\bin\claude.exe'
-  $r = Install-ClaudePlugins -ClaudeExe $claude
-  $r | ForEach-Object { "{0}: {1} - {2}" -f $_.Id, $_.Status, $_.Detail }
-  $doc = $r | Where-Object { $_.Id -eq $script:RetiredSkill.ReplacedBy }
-  if ($doc.Status -eq 'installed') {
-    $rm = Remove-RetiredClaudeSkill -Name $script:RetiredSkill.Name -DestRoot (Join-Path $env:USERPROFILE '.claude\skills') -BackupDir $IconDir
-    "retire: {0} - {1}" -f $rm.Status, $rm.Detail
-  } else { "retire: not attempted, plugin not confirmed" }
-  "warnings: " + ($script:Warnings -join ' | ')
-}
-```
-`claude.exe`가 `.local\bin`에 없으면 `(Get-Command claude).Source`로 바꾼다.
-Expected: 다섯 줄이 모두 `installed`이고 `kw-doc-formats@kw-doc-formats` 줄에 `autoUpdate on for kw-doc-formats`, `retire: removed`(옛 사본이 있었을 때) 또는 `retire: absent`.
-
-- [ ] **Step 3: 흔적을 확인한다**
+- [ ] **Step 2: 드라이런이 아무것도 쓰지 않았는지 본다**
 
 ```powershell
 Test-Path "$env:USERPROFILE\.claude\skills\document-formats"
-$reg = Get-Content "$env:USERPROFILE\.claude\plugins\known_marketplaces.json" -Raw | ConvertFrom-Json
-$reg.'kw-doc-formats'.autoUpdate
-@($reg.PSObject.Properties.Name).Count
-Get-ChildItem "$env:LOCALAPPDATA\kw-install" -Filter '*.bak'
+Test-Path "$env:LOCALAPPDATA\kw-install\document-formats.SKILL.md.bak"
+Select-String -Path "$env:USERPROFILE\.claude\CLAUDE.md" -Pattern 'BEGIN AX' -Quiet
 ```
-Expected: `False`, `True`, Step 0의 항목 수보다 정확히 하나 많다(다른 항목이 사라지지 않았다), 사본 파일 한 개(옛 사본이 있었을 때).
+Expected: `True`, `False`, `False`. 옛 사본은 남아 있고 사본 파일은 생기지 않았고 CLAUDE.md는 그대로다.
 
-- [ ] **Step 4: 사용자에게 넘기는 확인**
+- [ ] **Step 3: 사용자에게 넘기는 확인**
 
-이 항목은 서브에이전트의 통과 조건이 아니다. 새 창에서 `claude`를 켜고 `/plugin` → Marketplaces → `kw-doc-formats`에서 auto-update가 켜져 있는지 보는 것은 사용자가 한다. 꺼져 있다고 알려 오면 spec 「자동 갱신」 절의 방법이 틀린 것이므로 그때 다룬다. 최종 보고에 이 확인 요청을 적는다.
+이 항목은 서브에이전트의 통과 조건이 아니다. 최종 보고에 아래 둘을 적는다. 첫째, 다른 PC에서 설치기를 돌려 플러그인 단계에 `kw-doc-formats@kw-doc-formats: recorded in ...; autoUpdate on for kw-doc-formats`가 찍히고 옛 사본이 걷히는지 본다. 둘째, 그 PC에서 `claude`를 켜고 `/plugin` → Marketplaces → `kw-doc-formats`의 auto-update가 켜져 있는지 본다. 꺼져 있으면 spec 「자동 갱신」 절의 방법이 틀린 것이다.
 
 ---
 
@@ -1022,7 +990,7 @@ Expected: `False`, `True`, Step 0의 항목 수보다 정확히 하나 많다(�
 - Modify: `D:\projects\kw_install\docs\CHANGES-ON-THIS-PC.md` — 「깔리는 플러그인」 표(35~40행), 「고쳐지는 설정 파일」 첫 문장(47행)과 `extraKnownMarketplaces` 행, 「놓이는 파일과 환경변수」 표의 스킬 행(82행)
 
 **Interfaces:**
-- Consumes: Task 8의 확인 결과(자동 갱신이 실제로 켜졌다).
+- Consumes: Task 4~7의 테스트 통과와 Task 8의 드라이런. 자동 갱신이 실제로 켜지는지는 다른 PC에서 확인하므로, 문서는 설치기가 켜려 한다는 사실만 적는다.
 - Produces: 없음.
 
 - [ ] **Step 1: README를 고친다**
