@@ -27,7 +27,7 @@
       5. User PATH     - %USERPROFILE%\.local\bin
       6. Terminal      - Windows Terminal font, and a shortcut that opens it
       7. Claude wiring - skills, docker hook, settings.json, permission mode
-      8. Plugins       - claude plugin marketplace add + install
+      8. Plugins       - claude plugin marketplace add + install; retire the old skill copy
       9. Verify        - a real HTTPS request through the bundle
 
     Certificates come first on purpose. Everything after phase 1 that reaches
@@ -68,9 +68,10 @@
     cloned, and without python or node the last phase cannot verify.
 
 .PARAMETER SkipPythonLibs
-    Skip the requirements.txt install. The shipped document-formats skill calls
-    the tools it lists, so a machine set up this way cannot read .pptx, .docx
-    or .pdf even though every other phase went green.
+    Skip the requirements.txt install. The document-formats skill (installed
+    as the kw-doc-formats plugin in phase 8) calls the tools listed there, so a
+    machine set up this way cannot read .pptx, .docx or .pdf even though
+    every other phase went green.
 
 .PARAMETER SkipClaudeInstall
     Skip Claude Code.
@@ -155,6 +156,7 @@ $RequirementsPath = Join-Path $ScriptDir 'requirements.txt'
 # payload; two would drift the first time somebody redrew only one of them.
 # The built copy goes on the local disk because a shortcut pointing at the
 # share would lose its picture the moment the machine left the network.
+# Also where phase 8 leaves the backup of a retired skill: the one folder this installer owns.
 $IconPng = Join-Path $ScriptDir 'claudecode-color.png'
 $IconDir = Join-Path ($env:LOCALAPPDATA ?? $env:TEMP) 'kw-install'
 
@@ -1988,9 +1990,10 @@ function Invoke-Setup {
     }
 
     # --- 3. Python libraries ---
-    # These are not optional decoration. The document-formats skill installed in
-    # phase 6 calls `python -m markitdown` and names pypdf, so without this the
-    # machine goes green everywhere and still cannot open a .pptx.
+    # These are not optional decoration. The document-formats skill, which
+    # phase 8 installs as the kw-doc-formats plugin, calls `python -m
+    # markitdown` and names pypdf, so without this the machine goes green
+    # everywhere and still cannot open a .pptx.
     Write-Step '3/9  Python libraries'
     if ($SkipPythonLibs) {
         Write-Warn2 '-SkipPythonLibs specified. Reading .pptx, .docx and .pdf will not work.'
@@ -2301,6 +2304,7 @@ function Invoke-Setup {
 
     # --- 8. Plugins ---
     Write-Step '8/9  Claude Code plugins'
+    $plugins = @()
     if ($SkipPlugins) {
         Write-Warn2 '-SkipPlugins specified.'
     } else {
@@ -2316,6 +2320,38 @@ function Invoke-Setup {
                 }
             }
         }
+    }
+
+    # The document skill used to be copied into the personal skills folder and
+    # now arrives as a plugin. The leftover copy goes only once the replacing
+    # plugin is confirmed on disk: removed first and installed never, the
+    # machine would have no document skill at all. A dry run reports what a
+    # real run would do, so it too stays quiet when plugins are skipped.
+    $skillsRoot = Join-Path $env:USERPROFILE '.claude/skills'
+    $oldSkill   = $script:RetiredSkill
+    $replaced   = @($plugins | Where-Object { $_.Id -eq $oldSkill.ReplacedBy -and $_.Status -eq 'installed' }).Count -gt 0
+    if (($WhatIfOnly -and -not $SkipPlugins) -or $replaced) {
+        try {
+            $rm = Remove-RetiredClaudeSkill -Name $oldSkill.Name -DestRoot $skillsRoot -BackupDir $IconDir -WhatIfOnly:$WhatIfOnly
+        } catch {
+            $rm = @{ Status = 'failed'; Detail = $_.Exception.Message }
+        }
+        switch ($rm.Status) {
+            'removed' { Write-Ok $rm.Detail }
+            'skipped' { Write-Warn2 $rm.Detail }
+            'absent'  { }
+            'kept'    {
+                Write-Warn2 $rm.Detail
+                Add-Warning "old skill copy '$($oldSkill.Name)' kept - it holds files this installer did not write"
+            }
+            default   {
+                Write-Err2 "Old skill copy not handled: $($rm.Detail)"
+                Add-Warning "old skill copy '$($oldSkill.Name)' not handled - $($rm.Detail)"
+            }
+        }
+    } elseif (Test-Path (Join-Path $skillsRoot $oldSkill.Name)) {
+        Write-Warn2 "Old skill copy '$($oldSkill.Name)' left in place: $($oldSkill.ReplacedBy) is not confirmed installed."
+        Add-Warning "old skill copy '$($oldSkill.Name)' kept - the replacing plugin is not confirmed"
     }
 
     # --- 9. Verify ---

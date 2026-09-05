@@ -610,19 +610,13 @@ try { Merge-PersonalMemory -MemoryPath (Join-Path $Tmp 'x.md') -TemplatePath $un
 Assert 'a template with no markers is refused' $threw
 
 Write-Host '--- the guidance is reachable from the task that needs it ---'
-# A skill is only read when its description matches what the user is doing. The
-# PDF and pptx guidance was written into document-formats while its description
-# still said "read or convert" - unreachable from making a deck, which is
-# exactly when it is needed.
-$docFmt = [IO.File]::ReadAllText((Join-Path $Root 'skills/document-formats/SKILL.md'))
-$docDesc = ([regex]::Match($docFmt, '(?ms)^description:\s*(.+?)$')).Groups[1].Value
-foreach ($topic in @('pptx', 'PDF')) {
-    Assert "the description mentions $topic" ($docDesc -match [regex]::Escape($topic))
-}
+# The pptx and PDF rules live in the kw-doc-formats plugin now; its own tests
+# pin the description. What stays here is the memory block that points at it,
+# because that block is the one thing loaded every session.
 $mem = [IO.File]::ReadAllText($MemTemplate)
 Assert 'the memory block names the pptx rule' ($mem -match 'pptx')
 Assert 'the memory block names the PDF rule' ($mem -match 'PDF')
-Assert 'and points at the skill for the detail' ($mem -match 'document-formats')
+Assert 'and points at the plugin skill by its full name' ($mem -match 'kw-doc-formats:document-formats')
 
 Write-Host '--- WhatIf writes nothing ---'
 $whatif = Join-Path $Tmp 'whatif.json'
@@ -741,24 +735,25 @@ Assert 'names carry no version constraint' (@($reqNames | Where-Object { $_ -mat
 # markitdown installed bare cannot read pptx or docx: one extra is one format.
 Assert 'markitdown asks for the format extras' ($reqText -match 'markitdown\[[^\]]*docx[^\]]*\]' -and $reqText -match 'markitdown\[[^\]]*pptx[^\]]*\]')
 
-Write-Host '--- the shipped skills can actually run ---'
-# The regression this catches: shipping a skill whose tooling was never
-# installed. Derived from the skill text, so a new skill is covered for free.
-$skillFiles = @(Get-ChildItem -Path (Join-Path $Root 'skills') -Recurse -Filter 'SKILL.md')
-Assert 'skills ship' ($skillFiles.Count -gt 0)
-$skillText = ($skillFiles | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
-
-$modules = @([regex]::Matches($skillText, 'python -m ([A-Za-z0-9_\-]+)') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
-Assert 'at least one skill calls a python module' ($modules.Count -gt 0)
-$unmet = @($modules | Where-Object { $reqNames -notcontains $_ })
-Assert "every python module a skill calls is in requirements.txt (missing: $($unmet -join ', '))" ($unmet.Count -eq 0)
-Assert 'pypdf, which a skill names, is in requirements.txt' ($reqNames -contains 'pypdf')
+# The document-formats skill (now the kw-doc-formats plugin) names pypdf for
+# page selection and calls `python -m markitdown`. Both are pinned here by
+# name because the skill lives in another repo and cannot be derived from.
+Assert 'pypdf, which the document skill names, is in requirements.txt' ($reqNames -contains 'pypdf')
+Assert 'markitdown, which the document skill calls, is in requirements.txt' ($reqNames -contains 'markitdown')
 
 Write-Host '--- nothing points at a skill we do not ship ---'
 $shipped  = @(Get-ChildItem -Path (Join-Path $Root 'skills') -Directory | Select-Object -ExpandProperty Name)
 $hookText = (@(Get-ChildItem -Path (Join-Path $Root 'hooks') -Filter '*.ps1') | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
 Assert 'the docker hook still names a skill as its source of truth' ($hookText -match 'register-corp-certs')
 Assert 'that skill is one we ship' ($shipped -contains 'register-corp-certs')
+
+Write-Host '--- phase 8 removes the old copy only after the plugin is confirmed ---'
+$phase8 = $script:setupText.Substring((Find-Phase 'Claude Code plugins'))
+$phase8 = $phase8.Substring(0, $phase8.IndexOf('# --- 9. Verify ---'))
+Assert 'the retired skill is handled in the plugin phase' ($phase8 -match 'Remove-RetiredClaudeSkill')
+Assert 'and only once the replacing plugin reports installed' ($phase8 -match 'ReplacedBy' -and $phase8 -match "Status -eq 'installed'")
+Assert 'a dry run with plugins skipped does not promise a removal' ($phase8 -match '-not \$SkipPlugins')
+Assert 'the document skill is no longer shipped as a folder' (-not (Test-Path (Join-Path $Root 'skills/document-formats')))
 
 Write-Host '--- which PowerShell Claude Code will run ---'
 # There is no settings key for this. Claude Code probes three fixed paths and
