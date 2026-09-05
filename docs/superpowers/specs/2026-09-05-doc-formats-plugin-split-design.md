@@ -24,7 +24,7 @@
 | 파이썬 라이브러리와 Poppler | 설치기에 남긴다 | 플러그인은 프로그램을 깔 수 없다 |
 | 옛 사본 제거 | 플러그인 설치가 확인된 뒤에만, 사본을 남기고 지운다 | 안 지우면 같은 스킬이 두 벌 실린다. 설치 확인 전에 지우면 설치 실패 시 스킬이 없는 PC가 된다. 설치기가 고치는 다른 파일과 같이 `.bak`을 남긴다 |
 | 설치 성공 판정 | `installed_plugins.json`에 플러그인 id가 있는지로 본다 | 지금 판정은 `known_marketplaces.json` 원문에 마켓플레이스 이름이 있는지를 대소문자 무시로 대조한다. 이 플러그인은 repo 줄 `KiwoomAX/KW-doc-formats`가 이름 `kw-doc-formats`에 걸려, `plugin install`이 실패해도 `marketplace add`만 되면 통과한다. 옛 사본 삭제가 이 판정에 걸려 있으므로 오탐 하나가 곧 스킬 없는 PC다 |
-| 엑셀 규칙 추가 | 스킬 본문에 절 하나를 더한다 | 사용자 요청. 셀 글자 크기를 따로 바꾸지 말고 11로 둔다. 글꼴 이름은 다루지 않는다 |
+| 엑셀 규칙 추가 | 스킬 본문에 절 하나를 더한다 | 사용자 요청 둘. 셀 글자 크기를 따로 바꾸지 말고 11로 둔다. 글꼴 이름은 다루지 않는다. 그리고 사용자가 엑셀로 열 CSV는 BOM 있는 UTF-8(`utf-8-sig`)로 쓰고, 표가 목적이면 CSV 대신 `.xlsx`로 낸다. 한국어 엑셀은 BOM 없는 UTF-8 CSV를 cp949로 열어 한글이 깨지며, `PYTHONUTF8=1`을 세우면 파이썬의 기본 쓰기 인코딩이 UTF-8이 되어 이 일이 더 잦아진다 |
 
 ## 새 레포의 구조
 
@@ -52,7 +52,7 @@ tests/test_plugin.ps1             아래 계약을 검사한다
 - `plugin.json`의 `description`과 `marketplace.json`의 `plugins[0].description`이 같다.
 - `skills/*/SKILL.md`의 frontmatter `name`이 폴더 이름과 같다.
 - `SKILL.md`의 description이 `pptx`와 `PDF`를 언급한다. kw_install에 있던 검사를 스킬과 함께 옮긴다.
-- `SKILL.md`가 엑셀 글자 크기 11 규칙을 담는다.
+- `SKILL.md`가 엑셀 글자 크기 11 규칙과 CSV `utf-8-sig` 규칙을 담는다.
 
 ## kw_install의 변경
 
