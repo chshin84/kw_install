@@ -23,7 +23,8 @@
                          certs\ into one PEM and set the cert env vars
       2. Programs      - Python 3.12 (pinned), git, Node.js LTS, Poppler,
                          via winget
-      3. Libraries     - requirements.txt into the pinned Python
+      3. Libraries     - set PYTHONUTF8=1, then requirements.txt into the
+                         pinned Python
       4. Claude Code   - user profile, never elevated
       5. User PATH     - %USERPROFILE%\.local\bin
       6. Terminal      - Windows Terminal font, and a shortcut that opens it
@@ -669,6 +670,26 @@ function Set-CertEnvironment {
         $results += @{ Name = $name; Old = $old; New = $BundlePath; Changed = ($old -ne $BundlePath) }
     }
     return ,$results
+}
+
+# Python reads its default encoding for open() and for stdio from the system
+# code page. On a Korean Windows that is cp949, so anything written as UTF-8
+# comes back as mojibake and anything written for Excel comes back as UTF-8.
+# PYTHONUTF8=1 turns UTF-8 mode on for good.
+#
+# A value the user put there is never overwritten - not even 0, which is the
+# documented way to turn this off. Only the registry is written, never the
+# current session: nothing in this run reads the variable, and flipping the
+# mode mid-run would change what the python calls further down are doing.
+function Set-PythonUtf8Environment {
+    param([ValidateSet('User', 'Process')] [string]$Scope = 'User')
+
+    $old = [Environment]::GetEnvironmentVariable('PYTHONUTF8', $Scope)
+    if ($null -ne $old) { return @{ Old = $old; Changed = $false } }
+
+    if ($Scope -eq 'User') { [Environment]::SetEnvironmentVariable('PYTHONUTF8', '1', 'User') }
+    else                   { Set-Item -Path 'Env:PYTHONUTF8' -Value '1' }
+    return @{ Old = $null; Changed = $true }
 }
 
 # curl is the one tool the environment variables above cannot reach. It reads
@@ -2036,6 +2057,37 @@ function Invoke-Setup {
     # markitdown` and names pypdf, so without this the machine goes green
     # everywhere and still cannot open a .pptx.
     Write-Step '3/9  Python libraries'
+
+    # Not governed by -SkipPythonLibs: the libraries are optional, the encoding
+    # python starts with is not. Registry only, so already-open windows keep
+    # what they had and this run's own python calls are untouched.
+    $utf8Summary = 'not touched'
+    if ($WhatIfOnly) {
+        Write-Warn2 '[WhatIf] would set PYTHONUTF8 to 1'
+    } else {
+        try {
+            $utf8 = Set-PythonUtf8Environment -Scope 'User'
+            if ($utf8.Changed) {
+                $utf8Summary = 'set to 1'
+                Write-Ok 'PYTHONUTF8 set to 1: python defaults to UTF-8 in new windows'
+            } elseif ($utf8.Old -eq '1') {
+                $utf8Summary = 'already 1'
+                Write-Ok 'PYTHONUTF8 already 1'
+            } elseif ($utf8.Old -eq '0') {
+                $utf8Summary = '0 (left alone)'
+                Write-Ok 'PYTHONUTF8 is 0: left alone, python keeps the system code page'
+            } else {
+                $utf8Summary = "'$($utf8.Old)' (left alone)"
+                Write-Warn2 "PYTHONUTF8 is '$($utf8.Old)', left alone - python will not default to UTF-8"
+                Add-Warning "PYTHONUTF8 is '$($utf8.Old)' - set it to 1 by hand, or to 0 to keep it off"
+            }
+        } catch {
+            $utf8Summary = "not set ($($_.Exception.Message))"
+            Write-Warn2 "PYTHONUTF8 not set: $($_.Exception.Message)"
+            Add-Warning "PYTHONUTF8 not set: $($_.Exception.Message)"
+        }
+    }
+
     if ($SkipPythonLibs) {
         Write-Warn2 '-SkipPythonLibs specified. Reading .pptx, .docx and .pdf will not work.'
         Add-Warning 'python libraries skipped - the document skill cannot run'
@@ -2462,6 +2514,7 @@ Summary
   CA bundle       : $(if ($doSsl) { $bundlePath } else { "none ($sslReason)" })
   Cert variables  : $(if ($doSsl) { $script:CertEnvNames -join ', ' } else { 'none set' })
   Python          : $script:PythonVersion, with $((Get-RequirementNames -Path $RequirementsPath).Count) libraries
+  Python UTF-8    : $utf8Summary
   Terminal        : $termFont, $termShort
   settings.json   : $SettingsPath
   Permissions     : defaultMode auto, and nothing else changed. A classifier

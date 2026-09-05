@@ -140,6 +140,20 @@ Assert 'every variable points at the bundle' ($missing.Count -eq 0)
 $envAgain = Set-CertEnvironment -BundlePath $Bundle -Scope 'Process'
 Assert 'setting them again reports no change' (@($envAgain | Where-Object { $_.Changed }).Count -eq 0)
 
+# PYTHONUTF8, same Process scope so the registry is untouched. Cleared first
+# because this machine carries the user value into the test process, and
+# cleared again at the end because later checks launch python themselves.
+Remove-Item -Path 'Env:PYTHONUTF8' -ErrorAction SilentlyContinue
+$u1 = Set-PythonUtf8Environment -Scope 'Process'
+Assert 'an unset PYTHONUTF8 is set to 1' ($u1.Changed -eq $true -and $u1.Old -eq $null -and $env:PYTHONUTF8 -eq '1')
+$u2 = Set-PythonUtf8Environment -Scope 'Process'
+Assert 'a second call leaves it alone' ($u2.Changed -eq $false -and $u2.Old -eq '1' -and $env:PYTHONUTF8 -eq '1')
+Set-Item -Path 'Env:PYTHONUTF8' -Value '0'
+$u3 = Set-PythonUtf8Environment -Scope 'Process'
+Assert 'a value the user set is never overwritten' ($u3.Changed -eq $false -and $u3.Old -eq '0' -and $env:PYTHONUTF8 -eq '0')
+Remove-Item -Path 'Env:PYTHONUTF8' -ErrorAction SilentlyContinue
+
+
 Write-Host '--- the curl revocation line (written to a temp file, not the profile) ---'
 # curl is reached by a config file rather than a variable, so it gets its own
 # checks: it must append without eating what is there, and it must not stack up
@@ -534,6 +548,10 @@ Assert 'a clean verdict skips the docker certificate hook' ($setupText -match 'i
 # A real run printed "Cert variables: REQUESTS_CA_BUNDLE, ..." when nothing had
 # been set. The summary is what the person reads, so its lines have to be true.
 Assert 'the summary does not claim cert variables that were never set' ($setupText -match 'Cert variables\s*:\s*\$\(if \(\$doSsl\)')
+# Same shape for the UTF-8 line: the summary has to read the value the phase
+# decided, not a literal. A hardcoded 'set to 1' would be a lie on a machine
+# that left the user's own value alone.
+Assert 'the summary reads the PYTHONUTF8 result rather than asserting one' ($setupText -match 'Python UTF-8\s*:\s*\$utf8Summary')
 
 # The hook advises mounting the CA bundle. With no bundle that advice is wrong.
 $noCerts = Join-Path $Tmp 'nocerts.json'
@@ -736,6 +754,33 @@ Assert 'and does it before pip runs' (
     $libsPhase.IndexOf('Merge-PythonUserPath') -lt $libsPhase.IndexOf('Install-PythonLibraries'))
 Assert 'a dry run writes no PATH' ($libsPhase -match '\$pyDir -and -not \$WhatIfOnly')
 Assert 'the session picks the new PATH up, so the check below sees it' ($libsPhase -match 'Update-SessionPath')
+
+# PYTHONUTF8 flips the default encoding python uses for open() and for stdio.
+# Without it a new machine reads and writes cp949, and anything Claude wrote as
+# UTF-8 arrives as mojibake. The installer sets it once, in the user registry.
+#
+# Every check below was written by first asking what a do-nothing implementation
+# would look like, then making sure it fails. Matching bare `Write-Warn2` or
+# `Add-Warning` proves nothing here: the phase already calls both several times
+# for unrelated reasons.
+Assert 'the phase sets PYTHONUTF8' ($libsPhase -match 'Set-PythonUtf8Environment')
+Assert 'and does it outside the -SkipPythonLibs branch' (
+    ($libsPhase.IndexOf('Set-PythonUtf8Environment') -ge 0) -and
+    ($libsPhase.IndexOf('Set-PythonUtf8Environment') -lt $libsPhase.IndexOf('if ($SkipPythonLibs)')))
+Assert 'a dry run reports without writing' ($libsPhase -match '\$WhatIfOnly\s*\)\s*\{[^}]*WhatIf\] would set PYTHONUTF8')
+# A value we cannot read must reach the closing warning list. Pinned by the one
+# line that puts the old value into the message, so a silent branch cannot pass.
+Assert 'an unrecognised value is carried to the closing warnings' (
+    $libsPhase -match "Add-Warning[^
+]*PYTHONUTF8 is '\`$\(\`$utf8\.Old\)'")
+# 0 is the documented way to turn this off. Warning about it every run would
+# make the opt-out unusable, so the 0 branch must not add a warning.
+$zeroBranch = [regex]::Match($libsPhase, "(?s)\`$utf8\.Old -eq '0'.*?\}")
+Assert 'the 0 branch exists' ($zeroBranch.Success)
+Assert 'and does not warn' ($zeroBranch.Value -notmatch 'Add-Warning')
+Assert 'a failed write is reported, not swallowed' (
+    $libsPhase -match "(?s)catch\s*\{[^}]*Add-Warning[^}]*PYTHONUTF8 not set")
+
 
 Write-Host '--- requirements.txt ---'
 Assert 'requirements.txt ships with the folder' (Test-Path $Req)

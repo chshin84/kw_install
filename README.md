@@ -84,7 +84,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -WhatIfOnly
 | 사전 점검 | pwsh 판과 winget이 있는지, 관리자로 돌고 있는지를 확인한다 |
 | 인증서 | 가로채기가 있는지 재고, 필요하다고 판단되면 번들을 굽고 환경변수 4종을 세우며 curl 설정 한 줄을 넣는다. 잴 재료가 아직 없으면 프로그램 단계 직후로 미룬다 |
 | 프로그램 | 파이썬 3.12(판 고정)와 git, Node.js LTS, Poppler를 winget으로 깐다 |
-| 파이썬 라이브러리 | 고정한 3.12를 사용자 PATH 맨 앞으로 옮긴 뒤, `requirements.txt`에 적힌 것을 그 안에 넣고 `pip check`로 충돌을 확인한다 |
+| 파이썬 라이브러리 | 파이썬이 UTF-8을 기본으로 쓰도록 `PYTHONUTF8=1`을 세운다. 그다음 고정한 3.12를 사용자 PATH 맨 앞으로 옮기고, `requirements.txt`에 적힌 것을 그 안에 넣고 `pip check`로 충돌을 확인한다 |
 | Claude Code | 사용자 프로필에 설치한다. 관리자로 승격하지 않는다 |
 | PATH | `%USERPROFILE%\.local\bin`을 사용자 PATH에 넣어 `claude`를 이름만으로 실행하게 한다 |
 | 터미널 | 윈도우 터미널의 글꼴을 굴림체 10으로, 글자 가장자리를 다듬지 않게 맞춘다. 그리고 파워셸 7 프로필을 바로 여는 바로 가기를 시작 메뉴와 바탕화면에 놓는다. 여기서 실패해도 설치는 계속된다 |
