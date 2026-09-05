@@ -236,6 +236,7 @@ $WantPlugins = @(
     'document-skills@anthropic-agent-skills'
     'playwright@claude-plugins-official'
     'frontend-design@claude-plugins-official'
+    'kw-doc-formats@kw-doc-formats'
 )
 $configured = @($script:Plugins | ForEach-Object { $_.Id })
 Assert 'every plugin that was asked for is configured' (@($WantPlugins | Where-Object { $configured -notcontains $_ }).Count -eq 0)
@@ -279,6 +280,22 @@ foreach ($pl in $script:Plugins) {
     Assert "$($pl.Id) has its marketplace declared" (($mkt.source.repo -eq $pl.Repo) -and ($mkt.source.source -eq 'github'))
     Assert "$($pl.Id) is declared enabled" ($a1.enabledPlugins.($pl.Id) -eq $true)
 }
+
+# Third-party marketplaces have auto-update off by default, so the one that
+# carries our own skill is declared with it on. Nothing else gets the key:
+# the official marketplace already updates itself.
+Assert 'the kw-doc-formats marketplace is declared with auto-update on' ($a1.extraKnownMarketplaces.'kw-doc-formats'.autoUpdate -eq $true)
+Assert 'the official marketplace declaration carries no auto-update key' ($null -eq $a1.extraKnownMarketplaces.'claude-plugins-official'.PSObject.Properties['autoUpdate'])
+
+# A value the user set on that entry - off, say - is theirs and survives a
+# rerun. The declaration only fills the key in when it is absent.
+$userOff = Join-Path $Tmp 'user-off.json'
+@'
+{ "extraKnownMarketplaces": { "kw-doc-formats": { "source": { "source": "github", "repo": "KiwoomAX/KW-doc-formats" }, "autoUpdate": false } } }
+'@ | Set-Content -LiteralPath $userOff
+Merge-ClaudeSettings -SettingsPath $userOff | Out-Null
+$aOff = Get-Content $userOff -Raw | ConvertFrom-Json
+Assert 'an auto-update value the user set is left alone' ($aOff.extraKnownMarketplaces.'kw-doc-formats'.autoUpdate -eq $false)
 
 $skip = Join-Path $Tmp 'skip.json'
 Merge-ClaudeSettings -SettingsPath $skip -SkipPlugins | Out-Null

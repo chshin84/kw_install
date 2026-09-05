@@ -229,18 +229,22 @@ $script:Programs = @(
 # One row per plugin. Both the settings.json declaration and the CLI install
 # are generated from this list, so adding a plugin is one line and the two
 # cannot drift apart.
-# Three of the four come from the one official marketplace on purpose.
+# Three of the five come from the one official marketplace on purpose.
 # superpowers and frontend-design are also published by their own marketplaces,
 # and taking them from there meant a machine ended up carrying the same plugin
 # twice under two marketplace names - two copies of the same skills loaded, and
 # the same name listed twice for the user to pick between. Sourcing them from
-# claude-plugins-official collapses that, and drops the marketplace count from
-# four to two. document-skills is not in that marketplace, so it keeps its own.
+# claude-plugins-official collapses that. document-skills is not in that
+# marketplace, so it keeps its own. kw-doc-formats is our own document skill,
+# published from its own repo; AutoUpdate is set because third-party
+# marketplaces default to no auto-update and the whole point of shipping the
+# skill as a plugin is that a fix reaches installed machines without a rerun.
 $script:Plugins = @(
     @{ Id = 'superpowers@claude-plugins-official';      Marketplace = 'claude-plugins-official'; Repo = 'anthropics/claude-plugins-official'   }
     @{ Id = 'document-skills@anthropic-agent-skills';   Marketplace = 'anthropic-agent-skills';  Repo = 'anthropics/skills'                    }
     @{ Id = 'playwright@claude-plugins-official';       Marketplace = 'claude-plugins-official'; Repo = 'anthropics/claude-plugins-official'   }
     @{ Id = 'frontend-design@claude-plugins-official';  Marketplace = 'claude-plugins-official'; Repo = 'anthropics/claude-plugins-official'   }
+    @{ Id = 'kw-doc-formats@kw-doc-formats';            Marketplace = 'kw-doc-formats';          Repo = 'KiwoomAX/KW-doc-formats'; AutoUpdate = $true }
 )
 
 # Plugin ids this installer used to declare and no longer does. Merge-ClaudeSettings
@@ -1264,9 +1268,16 @@ function Merge-ClaudeSettings {
         if ($settings['extraKnownMarketplaces'] -isnot [hashtable]) { $settings['extraKnownMarketplaces'] = @{} }
         if ($settings['enabledPlugins'] -isnot [hashtable]) { $settings['enabledPlugins'] = @{} }
         foreach ($pl in $script:Plugins) {
-            $settings['extraKnownMarketplaces'][$pl.Marketplace] = @{
-                source = @{ source = 'github'; repo = $pl.Repo }
+            $entry = @{ source = @{ source = 'github'; repo = $pl.Repo } }
+            # autoUpdate is the user's once they have set it, on or off. It is
+            # filled in only when absent, and only for rows that ask for it.
+            $prior = $settings['extraKnownMarketplaces'][$pl.Marketplace]
+            if ($prior -is [hashtable] -and $prior.ContainsKey('autoUpdate')) {
+                $entry['autoUpdate'] = $prior['autoUpdate']
+            } elseif ($pl.AutoUpdate) {
+                $entry['autoUpdate'] = $true
             }
+            $settings['extraKnownMarketplaces'][$pl.Marketplace] = $entry
             $settings['enabledPlugins'][$pl.Id] = $true
         }
 
