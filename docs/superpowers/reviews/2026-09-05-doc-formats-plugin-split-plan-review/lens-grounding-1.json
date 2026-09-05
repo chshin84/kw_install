@@ -1,0 +1,8 @@
+{"lens":"grounding","issues":[
+{"n":1,"where":"Task 5 Step 4","claim":"'함수 위 주석'이 아니라 함수 본문 try 블록 안 두 줄(1342~1343행)이다","principle":"MEASURE-FIRST"},
+{"n":2,"where":"Task 8 Files","claim":"README 플러그인 행은 107행이 아니라 92행","principle":"MEASURE-FIRST"},
+{"n":3,"where":"Task 8 Files","claim":"CHANGES 플러그인 표는 43~48행이 아니라 35~40행","principle":"MEASURE-FIRST"},
+{"n":4,"where":"Task 4 Step 2 Expected","claim":"'the replacements are in'도 함께 실패한다","principle":"TDD"},
+{"n":5,"where":"Task 7 Step 1 (나)","claim":"블록 제목과 주석 두 줄의 처분이 없다","principle":"SURGICAL"},
+{"n":6,"where":"Task 7 Step 1 (가)","claim":"지울 줄은 넉 줄이 아니라 다섯 줄","principle":"MEASURE-FIRST"}],
+"notes":"나머지 인용과 행 번호, 변수 스코프, 함수 단언은 실측으로 맞다. settings.json의 extraKnownMarketplaces가 autoUpdate 키를 읽는지는 문서로 확인되지 않았다."}

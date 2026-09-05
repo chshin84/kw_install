@@ -1,0 +1,9 @@
+{"lens":"consistency","issues":[
+{"n":1,"where":"Task 7 Step 4 조건","claim":"spec의 -SkipPlugins 규정과 어긋난다(adversarial 5와 같음)","principle":"EXPLICIT"},
+{"n":2,"where":"Task 6","claim":"$script:RetiredSkill 타입이 spec(문자열)과 plan(해시테이블)에서 다르다(adversarial 8과 같음)","principle":"SSOT"},
+{"n":3,"where":"Task 8 Step 2","claim":"known_marketplaces.json을 새로 고치면서 CHANGES '사용자 파일 세 개'와 README '넷' 문장을 안 고친다","principle":"SSOT"},
+{"n":4,"where":"Task 5","claim":"-WhatIfOnly 스위치를 넘기는 호출부가 없다(adversarial 9와 같음)","principle":"SIMPLE"},
+{"n":5,"where":"Task 8·9 순서","claim":"spec은 실행(5) 뒤 문서(6)인데 plan은 뒤집혔다. 자동 갱신을 사실로 적은 문서가 확인 전에 커밋된다","principle":"EXPLICIT"},
+{"n":6,"where":"Task 8 Step 3","claim":"어느 렌즈를 돌리고 무엇이 통과인지 미정","principle":"EXPLICIT"},
+{"n":7,"where":"Task 1 Step 4 description","claim":"엑셀에 '글꼴·글자 크기'라 적어 글꼴을 다루는 것처럼 읽힌다. 본문과 spec은 글꼴 이름을 다루지 않는다","principle":"EXPLICIT"}],
+"notes":"spec 결정 표 11행과 소절 일곱과 새 레포 구조는 모두 Task에 실린다. 이름·시그니처 드리프트는 RetiredSkill 하나뿐이다."}

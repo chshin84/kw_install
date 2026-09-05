@@ -1,0 +1,16 @@
+{"lens":"adversarial","issues":[
+{"n":1,"where":"Global Constraints CRLF 스니펫","claim":"ASCIIEncoding 쓰기가 비ASCII를 '?'로 바꿔 ASCII 테스트가 잡을 자리를 없앤다","principle":"FAIL-LOUD"},
+{"n":2,"where":"Task 9 Step 2","claim":"설치기 전체를 이 PC에서 돌려 CLAUDE.md에 AX 블록이 새로 들어가고 터미널·PATH·pip까지 건드린다. Skip 스위치를 하나도 안 쓴다","principle":"REVERSIBLE"},
+{"n":3,"where":"Task 3 Step 2 / Task 9","claim":"Task 3이 손으로 깔아 둔 흔적을 Task 9가 설치기의 성공으로 읽는다. 새 PC의 첫 설치 경로가 한 번도 실행되지 않는다","principle":"TDD"},
+{"n":4,"where":"Task 9 Step 4","claim":"/plugin 화면 확인은 서브에이전트가 할 수 없다","principle":"TDD"},
+{"n":5,"where":"Task 7 Step 4 조건","claim":"-SkipPlugins -WhatIfOnly에서 드라이런이 실제와 다른 것을 예고한다","principle":"EXPLICIT"},
+{"n":6,"where":"Task 4 Step 4","claim":"Merge-ClaudeSettings가 autoUpdate를 매번 무조건 true로 넣어 사용자가 끈 값과 어긋난다","principle":"SSOT"},
+{"n":7,"where":"Interfaces 블록","claim":"Task 3 선행 조건이 어디에도 없고 Task 7에 Interfaces가 없다","principle":"EXPLICIT"},
+{"n":8,"where":"Task 6 상수 / Task 7 호출","claim":"spec은 문자열, plan은 해시테이블. 문자열이면 8단계가 try/catch 밖에서 죽는다","principle":"FAIL-LOUD"},
+{"n":9,"where":"Task 5 Set-MarketplaceAutoUpdate -WhatIfOnly","claim":"부르는 자리가 없는 스위치와 상태값과 단언","principle":"SIMPLE"},
+{"n":10,"where":"Task 1 Step 6, Task 2 Step 4","claim":"세 백틱 안에 세 백틱이 들어가 블록이 도중에 닫힌다","principle":"EXPLICIT"},
+{"n":11,"where":"Task 1 validate 단언","claim":"'error' 낱말 검사는 도구의 표기와 무관하고 exit code 단언이 이미 같은 것을 본다","principle":"SIMPLE"},
+{"n":12,"where":"Task 5 레지스트리 쓰기","claim":"CLI가 같은 파일을 세션마다 고친다. 쓰기 뒤 항목 수 대조가 없다","principle":"REVERSIBLE"},
+{"n":13,"where":"Test-PluginInstalled","claim":"installed_plugins.json 형식(version 2) 하나에 다섯 플러그인 판정을 건다","principle":"MEASURE-FIRST"},
+{"n":14,"where":"Task 1 Step 3 Expected","claim":"빨간 단계에서 스크립트 중단과 FAIL 목록을 구분하지 않는다","principle":"TDD"}],
+"notes":"gh repo create 실패 길(조직 정책)은 gh api orgs/KiwoomAX로 확인할 것. Task 8에 기계 확인 Expected가 없다. ConvertTo-Json -Depth 잘림은 지금 깊이 3이라 안 일어난다."}

@@ -76,7 +76,7 @@ tests/test_plugin.ps1             아래 계약을 검사한다
 
 이전 판 설치기가 `~/.claude/skills/document-formats/SKILL.md`를 써 둔 PC가 있다. 그대로 두면 개인 스킬과 플러그인 스킬이 같은 이름으로 둘 다 실린다.
 
-- `$script:RetiredSkill = 'document-formats'`를 상수로 둔다. 목록으로 두지 않는다. 옮기는 스킬은 하나이고 남는 하나는 옮기지 않기로 정했으므로 둘째 항목이 생길 길이 없다.
+- `$script:RetiredSkill = @{ Name = 'document-formats'; ReplacedBy = 'kw-doc-formats@kw-doc-formats' }`를 상수 하나로 둔다. 목록으로 두지 않는다. 옮기는 스킬은 하나이고 남는 하나는 옮기지 않기로 정했으므로 둘째 항목이 생길 길이 없다. `ReplacedBy`는 8단계가 어느 플러그인의 설치 확인을 기다릴지 말해 준다. plan 검진에서 문자열 하나로는 그 정보를 담을 수 없다고 짚여 이렇게 바꿨다.
 - 새 함수 `Remove-RetiredClaudeSkill -Name -DestRoot -BackupDir -WhatIfOnly`가 그 폴더를 개인 스킬 폴더에서 찾는다.
 - 폴더 안에 `SKILL.md` 하나만 있으면, 그 파일을 `%LOCALAPPDATA%\kw-install\document-formats.SKILL.md.bak`으로 복사한 뒤 폴더째 지운다. 설치기가 쓴 것이 그 파일 하나뿐이다.
 - 다른 파일이 하나라도 있으면 사용자 것이 섞였다고 보고 지우지 않는다. 경고를 내고 `Add-Warning`으로 마무리 화면에 남긴다.
