@@ -306,12 +306,22 @@ Write-Host '--- a plugin counts as installed only when the CLI recorded it ---'
 # The marketplace registry is not proof: `marketplace add` can succeed while
 # `plugin install` fails, and a repo name can contain the marketplace name
 # (KiwoomAX/KW-doc-formats holds kw-doc-formats, and -match ignores case).
+# The recorded key is not proof on its own either: the record's installPath has
+# to still be on disk. Phase 8 deletes the personal skill copy on this answer.
 $inst = Join-Path $Tmp 'installed_plugins.json'
-@'
-{ "version": 2, "plugins": { "kw-doc-formats@kw-doc-formats": [ { "scope": "user", "installPath": "x" } ] } }
-'@ | Set-Content -LiteralPath $inst
+$instPath = Join-Path $Tmp 'plugin-cache/kw-doc-formats'
+New-Item -ItemType Directory -Force -Path $instPath | Out-Null
+$instJson = @{
+    version = 2
+    plugins = @{
+        'kw-doc-formats@kw-doc-formats' = @(@{ scope = 'user'; installPath = $instPath })
+        'ghost@kw-doc-formats'          = @(@{ scope = 'user'; installPath = (Join-Path $Tmp 'plugin-cache/gone') })
+    }
+} | ConvertTo-Json -Depth 10
+[IO.File]::WriteAllText($inst, $instJson, [Text.UTF8Encoding]::new($false))
 Assert 'a recorded plugin is installed' (Test-PluginInstalled -RegistryPath $inst -Id 'kw-doc-formats@kw-doc-formats')
 Assert 'an unrecorded plugin is not' (-not (Test-PluginInstalled -RegistryPath $inst -Id 'playwright@claude-plugins-official'))
+Assert 'a record whose installPath is gone is not installed' (-not (Test-PluginInstalled -RegistryPath $inst -Id 'ghost@kw-doc-formats'))
 Assert 'a missing file means not installed' (-not (Test-PluginInstalled -RegistryPath (Join-Path $Tmp 'nope.json') -Id 'x@y'))
 'not json' | Set-Content -LiteralPath (Join-Path $Tmp 'bad.json')
 Assert 'a file that is not JSON means not installed' (-not (Test-PluginInstalled -RegistryPath (Join-Path $Tmp 'bad.json') -Id 'x@y'))
@@ -664,9 +674,18 @@ $r3 = Remove-RetiredClaudeSkill -Name 'document-formats' -DestRoot $oldRoot -Bac
 Assert 'a folder with other files is kept' ($r3.Status -eq 'kept' -and (Test-Path (Join-Path $oldDir 'notes.md')))
 $r4 = Remove-RetiredClaudeSkill -Name 'document-formats' -DestRoot (Join-Path $Tmp 'no-such-root') -BackupDir $bakDir
 Assert 'no skills folder at all is absent, not an error' ($r4.Status -eq 'absent')
+# An empty folder - somebody deleted the SKILL.md by hand - is not somebody's
+# work, so it goes too rather than warning on every run. Nothing to back up.
+Remove-Item -LiteralPath $oldDir -Recurse -Force
+New-Item -ItemType Directory -Force -Path $oldDir | Out-Null
+$r5 = Remove-RetiredClaudeSkill -Name 'document-formats' -DestRoot $oldRoot -BackupDir $bakDir
+Assert 'an empty folder is removed and reports no backup' ($r5.Status -eq 'removed' -and -not (Test-Path $oldDir) -and -not $r5.ContainsKey('Backup') -and $r5.Detail -match 'empty')
 $threw = $false
 try { Remove-RetiredClaudeSkill -Name '..\document-formats' -DestRoot $oldRoot -BackupDir $bakDir | Out-Null } catch { $threw = $true }
 Assert 'a name that is a path is refused' $threw
+$threwDot = $false
+try { Remove-RetiredClaudeSkill -Name '.' -DestRoot $oldRoot -BackupDir $bakDir | Out-Null } catch { $threwDot = $true }
+Assert 'a name of . is refused, so DestRoot itself is never the target' $threwDot
 
 Write-Host '--- the pinned python goes to the front of the user PATH ---'
 # The regression this catches: on a fresh Windows the only `python` on PATH is

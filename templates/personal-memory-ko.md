@@ -31,5 +31,7 @@
   값이 훨씬 적게 들고 표의 숫자를 잘못 읽는 일도 줄어듭니다.
 
 두 가지 모두 방법은 `kw-doc-formats:document-formats` 스킬에 적혀 있습니다.
+그 이름으로 찾지 못하면 `document-formats` 스킬을 여십시오. 플러그인이 아직 안 들어온
+PC에는 그 이름으로만 있습니다.
 
 # END AX 설치
