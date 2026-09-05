@@ -670,6 +670,9 @@ $r3 = Remove-RetiredClaudeSkill -Name 'document-formats' -DestRoot $oldRoot -Bac
 Assert 'a folder with other files is kept' ($r3.Status -eq 'kept' -and (Test-Path (Join-Path $oldDir 'notes.md')))
 $r4 = Remove-RetiredClaudeSkill -Name 'document-formats' -DestRoot (Join-Path $Tmp 'no-such-root') -BackupDir $bakDir
 Assert 'no skills folder at all is absent, not an error' ($r4.Status -eq 'absent')
+$threw = $false
+try { Remove-RetiredClaudeSkill -Name '..\document-formats' -DestRoot $oldRoot -BackupDir $bakDir | Out-Null } catch { $threw = $true }
+Assert 'a name that is a path is refused' $threw
 
 Write-Host '--- the pinned python goes to the front of the user PATH ---'
 # The regression this catches: on a fresh Windows the only `python` on PATH is

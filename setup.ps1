@@ -851,6 +851,8 @@ function Remove-RetiredClaudeSkill {
         [Parameter(Mandatory)][string]$BackupDir,
         [switch]$WhatIfOnly
     )
+    # Name is one folder under DestRoot, never a path: a separator or '..' would point Remove-Item elsewhere.
+    if ($Name -match '[\\/]' -or $Name -match '\.\.') { throw "Remove-RetiredClaudeSkill: Name must be a bare folder name, got '$Name'" }
     $dir = Join-Path $DestRoot $Name
     if (-not (Test-Path $dir)) { return @{ Status = 'absent'; Detail = "no old copy at $dir" } }
 
