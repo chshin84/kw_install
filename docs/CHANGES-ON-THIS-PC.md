@@ -91,4 +91,4 @@ Git Bash 프로필이 생겨도 같은 글꼴로 열린다.
 | 스킬 `register-corp-certs` | 개인 스킬 폴더 | 컨테이너 인증서를 다룬다. 이전 판이 함께 두던 `document-formats`는 플러그인으로 옮겨 갔다. 남은 사본은 두 조건이 모두 맞을 때만 걷어낸다. 플러그인 `kw-doc-formats`가 실제로 깔린 것이 확인됐고, 그 폴더에 설치기가 쓴 `SKILL.md` 말고 다른 파일이 없어야 한다. 걷어낼 때는 `SKILL.md`를 `%LOCALAPPDATA%\kw-install\document-formats.SKILL.md.bak`으로 옮긴 뒤 지운다. 조건이 어긋나면 그대로 두고 마무리 화면에 왜 남겼는지 적는다 |
 | 바로 가기 아이콘 파일 | `%LOCALAPPDATA%\kw-install` | `claudecode-color.png`를 구운 `.ico`가 여기 놓인다. 파일 이름에 그림 내용의 해시가 붙는데, 윈도우가 아이콘을 경로 단위로 기억해 같은 이름이면 옛 그림을 계속 그리기 때문이다 |
 | 도커 훅 스크립트 | `%LOCALAPPDATA%\corp-certs` | 위 `hooks.PreToolUse`가 이 파일을 부른다 |
-| 개인 기억 블록 | `%USERPROFILE%\.claude\CLAUDE.md` | 매 세션 실리는 지침이다. 이 PC에서 실제로 겪은 문제 — 발표자료 글자 윤곽선과 긴 PDF 읽기 — 를 스킬을 열지 않아도 보이게 둔다. 마커 사이만 바꾸고 이전 판은 `CLAUDE.md.bak`에 남긴다 |
+| 개인 기억 블록 | `%USERPROFILE%\.claude\CLAUDE.md` | 매 세션 실리는 지침이다. 담당자가 어떤 일을 하고 어떤 말투를 쓰는지만 담는다. 문서 작업의 규칙은 스킬이 들고 있으므로 여기 옮겨 적지 않는다. 마커 사이만 바꾸고 이전 판은 `CLAUDE.md.bak`에 남긴다 |

@@ -88,7 +88,7 @@ tests/test_plugin.ps1             아래 계약을 검사한다
 
 - `$WantPlugins`에 새 id를 더한다.
 - `at least one skill calls a python module`과 `every python module a skill calls is in requirements.txt` 두 단언과 그 앞의 모듈 추출을 걷어낸다. 스킬이 레포 밖으로 나가므로 레포 안에서 도출할 수 없다. `requirements.txt` 자체의 검사(`pypdf`가 있는가, `markitdown`이 형식 확장을 달았는가)는 남긴다.
-- "스킬 description이 pptx와 PDF를 언급하는가" 검사는 새 레포로 옮긴다. 개인 기억 템플릿이 `pptx`·`PDF`·`document-formats`를 가리키는가 하는 검사는 남긴다.
+- "스킬 description이 pptx와 PDF를 언급하는가" 검사는 새 레포로 옮긴다. 개인 기억 템플릿이 그 둘과 스킬 이름을 가리키는가 하는 검사도 걷어낸다. 작업 끝에 사용자가 그 블록에서 문서 규칙 두 줄을 뺐기 때문이다. 같은 규칙을 스킬과 기억 블록에 두 벌 두면 스킬을 고칠 때마다 블록이 낡는데, 스킬 설명이 "발표자료를 만들 때는 반드시 연다"를 이미 담고 있어 중복을 둘 이유가 없다.
 - `Remove-RetiredClaudeSkill`을 검사한다. `SKILL.md`만 있는 폴더는 사본이 생기고 지워지며, 다른 파일이 섞인 폴더는 남고, WhatIf는 아무것도 지우지 않고, 두 번째 실행은 아무것도 하지 않는다.
 - `Merge-ClaudeSettings`가 `AutoUpdate` 행의 마켓플레이스 항목에만 `autoUpdate`를 넣는지 검사한다.
 - `known_marketplaces.json`을 고치는 함수를 검사한다. 키가 없는 항목에는 넣고, 사용자가 넣어 둔 값은 덮지 않고, `.bak`이 남는다.
@@ -100,7 +100,7 @@ tests/test_plugin.ps1             아래 계약을 검사한다
 - `README.md`의 「이 폴더에 있는 것」 표에서 `skills\document-formats\` 행을 빼고, 「설치 단계」 표의 플러그인 단계 설명에서 '플러그인 넷'을 '다섯'으로 고친다.
 - `docs/CHANGES-ON-THIS-PC.md`의 「깔리는 플러그인」 표에 `kw-doc-formats` 행을 더하고, 「놓이는 파일과 환경변수」 표의 스킬 행에서 `document-formats`를 뺀다.
 - `setup.ps1`의 머리말 주석(`.PARAMETER SkipPythonLibs` 설명), 파이썬 라이브러리 단계 주석("installed in phase 6"), `$script:Plugins` 위 주석을 고친다.
-- `templates/personal-memory-ko.md`의 "`document-formats` 스킬에 적혀 있습니다"를 "`kw-doc-formats:document-formats` 스킬에 적혀 있습니다"로 고친다. 호출 이름을 한 가지로 쓴다.
+- `templates/personal-memory-ko.md`은 사용자가 직접 다시 썼다. 문서 규칙 두 줄과 스킬을 가리키는 문장이 빠지고 담당자가 누구인지만 남았다.
 
 ## 순서
 

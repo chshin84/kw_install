@@ -619,14 +619,11 @@ $threw = $false
 try { Merge-PersonalMemory -MemoryPath (Join-Path $Tmp 'x.md') -TemplatePath $unmarked | Out-Null } catch { $threw = $true }
 Assert 'a template with no markers is refused' $threw
 
-Write-Host '--- the guidance is reachable from the task that needs it ---'
-# The pptx and PDF rules live in the kw-doc-formats plugin now; its own tests
-# pin the description. What stays here is the memory block that points at it,
-# because that block is the one thing loaded every session.
-$mem = [IO.File]::ReadAllText($MemTemplate)
-Assert 'the memory block names the pptx rule' ($mem -match 'pptx')
-Assert 'the memory block names the PDF rule' ($mem -match 'PDF')
-Assert 'and points at the plugin skill by its full name' ($mem -match 'kw-doc-formats:document-formats')
+# The pptx and PDF rules used to be repeated here as well as in the skill, so
+# that they showed without opening it. They are gone from the memory block now:
+# the skill is a plugin whose description tells the model to open it before
+# making a deck, so the rules reach the moment that needs them, and one fact
+# lives in one place. The memory block carries who the user is, nothing else.
 
 Write-Host '--- WhatIf writes nothing ---'
 $whatif = Join-Path $Tmp 'whatif.json'
