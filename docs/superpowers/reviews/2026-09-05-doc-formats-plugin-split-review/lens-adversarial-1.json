@@ -1,0 +1,16 @@
+{
+  "lens": "adversarial",
+  "issues": [
+    {"where": "옛 사본 제거 절 마지막 줄 — Install-ClaudeSkills 직후에 부른다", "type": "failure-mode", "claim": "지우는 일이 까는 일(플러그인 8단계)보다 먼저 놓여 있다. 옛 사본을 지운 뒤 플러그인 설치가 실패하면 문서 스킬이 하나도 남지 않는다. 플러그인 설치 확인 뒤에만 지우게 옮긴다.", "principle": "FAIL-LOUD"},
+    {"where": "옛 사본 제거 절 — -SkipSkills이면 부르지 않는다", "type": "failure-mode", "claim": "-SkipPlugins로 돌리면 옛 사본은 지워지고 플러그인은 안 깔린다. 삭제 조건에 -SkipPlugins도 걸어야 한다.", "principle": "FAIL-LOUD"},
+    {"where": "옛 사본 제거 절 — -SkipSkills이면 부르지 않는다", "type": "failure-mode", "claim": "-SkipSkills로 돌린 PC는 옛 사본이 남은 채 플러그인이 깔려 이중 적재가 생긴다. 그 경우를 어떻게 알릴지 정해야 한다.", "principle": "FAIL-LOUD"},
+    {"where": "테스트 절 두 번째 줄", "type": "failure-mode", "claim": "걷어낼 단언은 하나로 적었지만 같은 블록의 'at least one skill calls a python module' 단언도 실패한다. 걷어낼 대상에 이름으로 적어야 한다.", "principle": "TDD"},
+    {"where": "플러그인 목록 절 — Marketplace kw-doc-formats, Repo KiwoomAX/KW-doc-formats", "type": "risk", "claim": "설치 성공 판정이 known_marketplaces.json 원문에 마켓플레이스 이름이 있는지로 하는데, -match는 대소문자를 안 가려 repo 줄 'KiwoomAX/KW-doc-formats'가 'kw-doc-formats'에 걸린다. plugin install이 실패해도 marketplace add만 되면 통과한다. 옛 사본이 지워진 뒤라 오탐 하나가 곧 스킬 없는 PC다.", "principle": "MEASURE-FIRST"},
+    {"where": "목적 절 첫 문장 — 플러그인 자동 갱신으로 받게 한다", "type": "failure-mode", "claim": "자동 갱신은 마켓플레이스 항목에 autoUpdate가 켜져야 도는데 설계에 그것을 켜는 일이 없다. 설치기가 넣은 두 마켓플레이스에는 autoUpdate가 없다.", "principle": "MEASURE-FIRST"},
+    {"where": "옛 사본 제거 절 — SKILL.md 하나만 있으면 폴더째 지운다", "type": "irreversible", "claim": "파일 개수로만 가르고 내용은 보지 않아 사용자가 손으로 고친 SKILL.md도 지운다. 설치기가 파괴적으로 고치는 다른 파일에는 모두 .bak을 남긴다.", "principle": "REVERSIBLE"},
+    {"where": "결정한 것 표 — 레포 퍼블릭", "type": "irreversible", "claim": "퍼블릭 공개의 근거로 clone 편의만 적었고, 옮기는 본문에 사내 파일 관행과 사내 표준 테마를 가리키는 문장이 있다는 점이 근거 칸에 없다.", "principle": "REVERSIBLE"},
+    {"where": "옛 사본 제거 절 — RetiredSkills 목록과 전용 함수", "type": "over-engineering", "claim": "옮기는 스킬이 하나뿐이고 남는 하나는 안 옮기기로 못박아 목록이 둘째 항목을 가질 길이 없다. 이름 하나를 상수로 두는 것으로 줄인다.", "principle": "SIMPLE"},
+    {"where": "문서 절", "type": "failure-mode", "claim": "$script:Plugins 바로 위 주석이 '넷 중 셋, 마켓플레이스 둘'이라는 수를 들고 있는데 고칠 자리 목록에 없다.", "principle": "SSOT"}
+  ],
+  "notes": "확인이 남은 것 둘. (1) 개인 기억 템플릿의 'document-formats 스킬'이 접두사 없이 플러그인 스킬에 닿는지 재 봐야 한다. (2) Install-ClaudePlugins의 skipped 가지에는 Add-Warning이 없어 새 PC에서 조용히 스킬 없는 상태로 끝나는 길이 있다. 설치기 쪽 줄이라 발견으로 올리지 않았다."
+}

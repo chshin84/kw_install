@@ -1,0 +1,6 @@
+{"lens":"grounding","issues":[
+{"where":"테스트 절","type":"omission","claim":"'at least one skill calls a python module' 단언의 처분이 없다. 남는 register-corp-certs에는 python -m 호출이 없어 실패한다.","principle":"TDD"},
+{"where":"문서 절","type":"omission","claim":"setup.ps1의 파이썬 라이브러리 단계 주석(1883행, 'installed in phase 6')이 고칠 곳 목록에 없다.","principle":"SSOT"},
+{"where":"플러그인 목록 절","type":"omission","claim":"$script:Plugins 위 주석이 '넷 중 셋, 마켓플레이스 넷에서 둘로'라는 수를 들고 있는데 고칠 곳에 없다.","principle":"SSOT"},
+{"where":"문서 절","type":"omission","claim":"CHANGES-ON-THIS-PC.md의 '깔리는 플러그인' 표에 새 행을 더한다는 지시가 없다.","principle":"NAME-ITEMS"}],
+"notes":"확인된 것: '한 줄이 선언과 설치를 둘 다 만든다', 'SKILL.md 하나만 설치기가 썼다', 'validate/kebab-case', '테스트 계약이 실재한다'는 코드와 맞다. 남은 확인거리: README 전제 목록의 python-docx·python-pptx·openpyxl은 스킬 본문이 부르지 않는다. kw_install 레포 공개 여부는 주입 사실에 없었다."}
