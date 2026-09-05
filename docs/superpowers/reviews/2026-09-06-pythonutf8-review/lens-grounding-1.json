@@ -1,0 +1,9 @@
+{"lens":"grounding","issues":[
+{"n":1,"claim":"콘솔 코드 페이지 근거가 설치기 주석과 어긋난다. 설치기는 두 곳에서 콘솔 인코딩을 손댄다","principle":"MEASURE-FIRST"},
+{"n":2,"claim":"스킬의 cp949 서술이 CSV 절에만 있지 않다. 열기 기본값 절과 PDF 절도 cp949로 단정한다","principle":"MEASURE-FIRST"},
+{"n":3,"claim":"스킬은 이 변수를 한 번 실행에만 붙는 일회성 수단으로 적는다. 영구 설정과 어긋난다","principle":"SSOT"},
+{"n":4,"claim":"인증서 테스트가 먼저 하는 환경변수 비우기가 테스트 목록에 없다. 이 PC의 값이 상속돼 '없던 자리'가 아니다","principle":"TDD"},
+{"n":5,"claim":"'인증서 함수와 같은 꼴'이 아니다. 반환 모양과 -WhatIfOnly 자리가 다르다","principle":"EXPLICIT"},
+{"n":6,"claim":"화면 문구 넷이 어느 출력 함수로 나가는지 정하지 않았다","principle":"EXPLICIT"},
+{"n":7,"claim":"setup.ps1과 test_setup.ps1의 ASCII·CRLF 제약을 적지 않았다","principle":"EXPLICIT"}],
+"notes":"측정표 앞 네 줄은 다시 재어 일치. 3단계에 감싸는 try가 없다는 서술도 맞다. PYTHONUTF8=1이 open()과 표준 입출력을 덮는다는 것도 맞다."}

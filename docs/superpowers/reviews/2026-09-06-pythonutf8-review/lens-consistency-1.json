@@ -1,0 +1,9 @@
+{"lens":"consistency","issues":[
+{"n":1,"claim":"'실패할 자리가 없다'와 '예외를 잡는다'가 한 문단에 있다. 잡고 아무 데도 안 알린다","principle":"FAIL-LOUD"},
+{"n":2,"claim":"변수 이름의 정본 자리가 없다. 인증서 넷은 $script:CertEnvNames 한 곳에 있다","principle":"SSOT"},
+{"n":3,"claim":"마무리 요약 블록에 이 변수가 나오는지 정하지 않았다","principle":"EXPLICIT"},
+{"n":4,"claim":"고칠 문서를 둘로 셌는데 setup.ps1의 .DESCRIPTION 단계 목록이 빠졌다","principle":"SSOT"},
+{"n":5,"claim":"배치 검사가 분기 바깥을 어떻게 가르는지 정하지 않았다(adversarial 8과 같음)","principle":"TDD"},
+{"n":6,"claim":"'이 PC의 값을 건드리지 않는다'는 결정 표의 멱등 행이 이 PC에 적용된 결과라 중복이다","principle":"SSOT"},
+{"n":7,"claim":"화면 문구 넷이 서로 다른 꼴이다. 설치기의 같은 짝은 한 꼴을 유지한다","principle":"EXPLICIT"}],
+"notes":"결정 표 일곱 줄 가운데 여섯은 계약·화면·테스트로 이어진다. 스코프는 한 구현 계획에 맞는다."}

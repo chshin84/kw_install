@@ -1,0 +1,12 @@
+{"lens":"adversarial","issues":[
+{"n":1,"claim":"PYTHONUTF8=1이 open() 기본 디코더를 바꿔, 인코딩을 안 적고 cp949 CSV를 읽던 기존 코드가 깨진다. spec은 '무관하다'로 닫았다","principle":"MEASURE-FIRST"},
+{"n":2,"claim":"쓰기도 같다. open(path,'w')로 CSV를 쓰던 스크립트가 BOM 없는 UTF-8을 내어 엑셀에서 깨진다","principle":"FAIL-LOUD"},
+{"n":3,"claim":"스킬이 '이 PC 파이썬 열기 기본은 cp949'라고 단정한다. 변수를 세우면 거짓이 되는데 스킬을 그대로 두기로 했다","principle":"SSOT"},
+{"n":4,"claim":"사용자가 0으로 둔 값을 덮는 결정이 설치기의 다른 모든 결정과 반대다. 설치기는 사용자 값을 존중한다","principle":"REVERSIBLE"},
+{"n":5,"claim":"되돌리는 길이 없다. 옛 값은 스크롤되는 화면 한 줄에만 남고 끄는 방법이 문서에 없다","principle":"REVERSIBLE"},
+{"n":6,"claim":"본뜬다는 Set-CertEnvironment보다 계약이 크다. Status 삼분과 -WhatIfOnly를 함수 안에 뒀다","principle":"SIMPLE"},
+{"n":7,"claim":"'실패할 자리가 없다'면서 try/catch를 두라 한다. 잡고 Add-Warning을 안 하면 조용히 초록으로 끝난다","principle":"FAIL-LOUD"},
+{"n":8,"claim":"배치 검사를 '소스 텍스트로 확인한다'로만 적어, 호출이 else 안으로 들어가도 통과한다","principle":"TDD"},
+{"n":9,"claim":"1·2단계가 이미 파이썬을 부른다. '3단계에서 세우면 그다음 파이썬이 UTF-8'이라는 근거가 어긋난다","principle":"MEASURE-FIRST"},
+{"n":10,"claim":"'PowerShell 7은 이미 UTF-8 기본'이 틀렸다. setup.cmd가 chcp 65001을 돌리는 것이고 직접 연 창은 아니다","principle":"MEASURE-FIRST"}],
+"notes":"3단계 첫머리 배치 자체는 코드와 충돌하지 않는다. PYTHONIOENCODING 미설정과 시스템 변수 미사용은 근거가 맞다."}
