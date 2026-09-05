@@ -236,6 +236,7 @@ $WantPlugins = @(
     'document-skills@anthropic-agent-skills'
     'playwright@claude-plugins-official'
     'frontend-design@claude-plugins-official'
+    'kw-doc-formats@kw-doc-formats'
 )
 $configured = @($script:Plugins | ForEach-Object { $_.Id })
 Assert 'every plugin that was asked for is configured' (@($WantPlugins | Where-Object { $configured -notcontains $_ }).Count -eq 0)
@@ -280,10 +281,96 @@ foreach ($pl in $script:Plugins) {
     Assert "$($pl.Id) is declared enabled" ($a1.enabledPlugins.($pl.Id) -eq $true)
 }
 
+# Third-party marketplaces have auto-update off by default, so the one that
+# carries our own skill is declared with it on. Nothing else gets the key:
+# the official marketplace already updates itself.
+Assert 'the kw-doc-formats marketplace is declared with auto-update on' ($a1.extraKnownMarketplaces.'kw-doc-formats'.autoUpdate -eq $true)
+Assert 'the official marketplace declaration carries no auto-update key' ($null -eq $a1.extraKnownMarketplaces.'claude-plugins-official'.PSObject.Properties['autoUpdate'])
+
+# A value the user set on that entry - off, say - is theirs and survives a
+# rerun. The declaration only fills the key in when it is absent.
+$userOff = Join-Path $Tmp 'user-off.json'
+@'
+{ "extraKnownMarketplaces": { "kw-doc-formats": { "source": { "source": "github", "repo": "KiwoomAX/KW-doc-formats" }, "autoUpdate": false } } }
+'@ | Set-Content -LiteralPath $userOff
+Merge-ClaudeSettings -SettingsPath $userOff | Out-Null
+$aOff = Get-Content $userOff -Raw | ConvertFrom-Json
+Assert 'an auto-update value the user set is left alone' ($aOff.extraKnownMarketplaces.'kw-doc-formats'.autoUpdate -eq $false)
+
 $skip = Join-Path $Tmp 'skip.json'
 Merge-ClaudeSettings -SettingsPath $skip -SkipPlugins | Out-Null
 $as = Get-Content $skip -Raw | ConvertFrom-Json
 Assert '-SkipPlugins writes no plugin keys' ($null -eq $as.PSObject.Properties['enabledPlugins'])
+
+Write-Host '--- a plugin counts as installed only when the CLI recorded it ---'
+# The marketplace registry is not proof: `marketplace add` can succeed while
+# `plugin install` fails, and a repo name can contain the marketplace name
+# (KiwoomAX/KW-doc-formats holds kw-doc-formats, and -match ignores case).
+# The recorded key is not proof on its own either: the record's installPath has
+# to still be on disk. Phase 8 deletes the personal skill copy on this answer.
+$inst = Join-Path $Tmp 'installed_plugins.json'
+$instPath = Join-Path $Tmp 'plugin-cache/kw-doc-formats'
+New-Item -ItemType Directory -Force -Path $instPath | Out-Null
+$instJson = @{
+    version = 2
+    plugins = @{
+        'kw-doc-formats@kw-doc-formats' = @(@{ scope = 'user'; installPath = $instPath })
+        'ghost@kw-doc-formats'          = @(@{ scope = 'user'; installPath = (Join-Path $Tmp 'plugin-cache/gone') })
+    }
+} | ConvertTo-Json -Depth 10
+[IO.File]::WriteAllText($inst, $instJson, [Text.UTF8Encoding]::new($false))
+Assert 'a recorded plugin is installed' (Test-PluginInstalled -RegistryPath $inst -Id 'kw-doc-formats@kw-doc-formats')
+Assert 'an unrecorded plugin is not' (-not (Test-PluginInstalled -RegistryPath $inst -Id 'playwright@claude-plugins-official'))
+Assert 'a record whose installPath is gone is not installed' (-not (Test-PluginInstalled -RegistryPath $inst -Id 'ghost@kw-doc-formats'))
+Assert 'a missing file means not installed' (-not (Test-PluginInstalled -RegistryPath (Join-Path $Tmp 'nope.json') -Id 'x@y'))
+'not json' | Set-Content -LiteralPath (Join-Path $Tmp 'bad.json')
+Assert 'a file that is not JSON means not installed' (-not (Test-PluginInstalled -RegistryPath (Join-Path $Tmp 'bad.json') -Id 'x@y'))
+
+Write-Host '--- auto-update is switched on in the marketplace registry ---'
+$reg = Join-Path $Tmp 'known_marketplaces.json'
+$regText = @'
+{
+  "claude-plugins-official": { "source": { "source": "github", "repo": "anthropics/claude-plugins-official" }, "installLocation": "C:\\x", "lastUpdated": "2026-09-05T09:08:52.295Z" },
+  "kw-doc-formats": { "source": { "source": "github", "repo": "KiwoomAX/KW-doc-formats" }, "installLocation": "C:\\y", "lastUpdated": "2026-09-05T09:08:53.617Z" },
+  "theirs": { "source": { "source": "github", "repo": "someone/theirs" }, "autoUpdate": false }
+}
+'@
+[IO.File]::WriteAllText($reg, $regText, [Text.UTF8Encoding]::new($false))
+$s1 = Set-MarketplaceAutoUpdate -RegistryPath $reg -Marketplace 'kw-doc-formats'
+$after = Get-Content $reg -Raw | ConvertFrom-Json
+Assert 'the key is set on the named marketplace' ($s1.Status -eq 'set' -and $after.'kw-doc-formats'.autoUpdate -eq $true)
+Assert 'a backup is left beside the registry' (Test-Path "$reg.bak")
+Assert 'every entry survives the rewrite' (@($after.PSObject.Properties.Name).Count -eq 3)
+Assert 'other marketplaces are untouched' ($null -eq $after.'claude-plugins-official'.PSObject.Properties['autoUpdate'])
+Assert 'the timestamp strings survive the rewrite' (([IO.File]::ReadAllText($reg)) -match '2026-09-05T09:08:52\.295Z')
+$s2 = Set-MarketplaceAutoUpdate -RegistryPath $reg -Marketplace 'kw-doc-formats'
+Assert 'a second call changes nothing' ($s2.Status -eq 'unchanged')
+$s3 = Set-MarketplaceAutoUpdate -RegistryPath $reg -Marketplace 'theirs'
+$after3 = Get-Content $reg -Raw | ConvertFrom-Json
+Assert 'a value the user set is not overwritten' ($s3.Status -eq 'unchanged' -and $after3.theirs.autoUpdate -eq $false)
+$s4 = Set-MarketplaceAutoUpdate -RegistryPath $reg -Marketplace 'unknown'
+Assert 'an unregistered marketplace is reported, not added' ($s4.Status -eq 'failed')
+
+Write-Host '--- a backup or write failure is reported, not thrown ---'
+# Copy-Item throws when the .bak path is locked by another handle. That must
+# come back as Status = 'failed', not an uncaught exception that would abort
+# the whole plugin loop in Install-ClaudePlugins and lose the other results.
+$reg2 = Join-Path $Tmp 'known_marketplaces2.json'
+$reg2Text = @'
+{
+  "kw-doc-formats": { "source": { "source": "github", "repo": "KiwoomAX/KW-doc-formats" }, "installLocation": "C:\\y" }
+}
+'@
+[IO.File]::WriteAllText($reg2, $reg2Text, [Text.UTF8Encoding]::new($false))
+$before2 = [IO.File]::ReadAllText($reg2)
+$lock = [IO.File]::Open("$reg2.bak", [IO.FileMode]::Create, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+try {
+    $s5 = Set-MarketplaceAutoUpdate -RegistryPath $reg2 -Marketplace 'kw-doc-formats'
+    Assert 'a locked backup path is reported as failed' ($s5.Status -eq 'failed')
+    Assert 'the registry is untouched when the backup fails' (([IO.File]::ReadAllText($reg2)) -eq $before2)
+} finally {
+    $lock.Dispose()
+}
 
 Write-Host '--- repairing a machine that still prompts ---'
 # ask beats allow in Claude Code. If our three patterns are not swept out of
@@ -533,19 +620,13 @@ try { Merge-PersonalMemory -MemoryPath (Join-Path $Tmp 'x.md') -TemplatePath $un
 Assert 'a template with no markers is refused' $threw
 
 Write-Host '--- the guidance is reachable from the task that needs it ---'
-# A skill is only read when its description matches what the user is doing. The
-# PDF and pptx guidance was written into document-formats while its description
-# still said "read or convert" - unreachable from making a deck, which is
-# exactly when it is needed.
-$docFmt = [IO.File]::ReadAllText((Join-Path $Root 'skills/document-formats/SKILL.md'))
-$docDesc = ([regex]::Match($docFmt, '(?ms)^description:\s*(.+?)$')).Groups[1].Value
-foreach ($topic in @('pptx', 'PDF')) {
-    Assert "the description mentions $topic" ($docDesc -match [regex]::Escape($topic))
-}
+# The pptx and PDF rules live in the kw-doc-formats plugin now; its own tests
+# pin the description. What stays here is the memory block that points at it,
+# because that block is the one thing loaded every session.
 $mem = [IO.File]::ReadAllText($MemTemplate)
 Assert 'the memory block names the pptx rule' ($mem -match 'pptx')
 Assert 'the memory block names the PDF rule' ($mem -match 'PDF')
-Assert 'and points at the skill for the detail' ($mem -match 'document-formats')
+Assert 'and points at the plugin skill by its full name' ($mem -match 'kw-doc-formats:document-formats')
 
 Write-Host '--- WhatIf writes nothing ---'
 $whatif = Join-Path $Tmp 'whatif.json'
@@ -567,6 +648,44 @@ $r = Install-ClaudeSkills -SourceDir (Join-Path $Root 'skills') -DestRoot $skill
 Assert 'without WhatIf the skills are written' ((@(Get-ChildItem -Path $skillDest -Recurse -Filter 'SKILL.md' -ErrorAction SilentlyContinue)).Count -eq @($r.Installed).Count)
 $r2 = Install-ClaudeSkills -SourceDir (Join-Path $Root 'skills') -DestRoot $skillDest
 Assert 'a second skill install reports them unchanged' (@($r2.Unchanged).Count -eq @($r.Installed).Count)
+
+Write-Host '--- the old personal copy of document-formats is retired ---'
+# The skill now arrives as a plugin. A personal copy left behind loads twice
+# under the same name. The installer only ever wrote SKILL.md, so a folder
+# holding anything else is somebody's work and stays.
+Assert 'the retired skill names the plugin that replaces it' ($script:RetiredSkill.Name -eq 'document-formats' -and $script:RetiredSkill.ReplacedBy -eq 'kw-doc-formats@kw-doc-formats')
+$oldRoot = Join-Path $Tmp 'old-skills'
+$oldDir  = Join-Path $oldRoot 'document-formats'
+$bakDir  = Join-Path $Tmp 'bak'
+New-Item -ItemType Directory -Force -Path $oldDir | Out-Null
+[IO.File]::WriteAllText((Join-Path $oldDir 'SKILL.md'), 'old body', [Text.UTF8Encoding]::new($false))
+$r0 = Remove-RetiredClaudeSkill -Name 'document-formats' -DestRoot $oldRoot -BackupDir $bakDir -WhatIfOnly
+Assert 'WhatIf reports the removal and leaves the folder' ($r0.Status -eq 'skipped' -and (Test-Path $oldDir) -and -not (Test-Path $bakDir))
+$r1 = Remove-RetiredClaudeSkill -Name 'document-formats' -DestRoot $oldRoot -BackupDir $bakDir
+Assert 'a folder holding only SKILL.md is removed' ($r1.Status -eq 'removed' -and -not (Test-Path $oldDir))
+Assert 'and its SKILL.md is backed up first' ((Test-Path (Join-Path $bakDir 'document-formats.SKILL.md.bak')) -and ([IO.File]::ReadAllText((Join-Path $bakDir 'document-formats.SKILL.md.bak')) -eq 'old body'))
+Assert 'the skills root itself is untouched' (Test-Path $oldRoot)
+$r2 = Remove-RetiredClaudeSkill -Name 'document-formats' -DestRoot $oldRoot -BackupDir $bakDir
+Assert 'a second run finds nothing and does nothing' ($r2.Status -eq 'absent')
+New-Item -ItemType Directory -Force -Path $oldDir | Out-Null
+[IO.File]::WriteAllText((Join-Path $oldDir 'SKILL.md'), 'old body', [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $oldDir 'notes.md'), 'mine', [Text.UTF8Encoding]::new($false))
+$r3 = Remove-RetiredClaudeSkill -Name 'document-formats' -DestRoot $oldRoot -BackupDir $bakDir
+Assert 'a folder with other files is kept' ($r3.Status -eq 'kept' -and (Test-Path (Join-Path $oldDir 'notes.md')))
+$r4 = Remove-RetiredClaudeSkill -Name 'document-formats' -DestRoot (Join-Path $Tmp 'no-such-root') -BackupDir $bakDir
+Assert 'no skills folder at all is absent, not an error' ($r4.Status -eq 'absent')
+# An empty folder - somebody deleted the SKILL.md by hand - is not somebody's
+# work, so it goes too rather than warning on every run. Nothing to back up.
+Remove-Item -LiteralPath $oldDir -Recurse -Force
+New-Item -ItemType Directory -Force -Path $oldDir | Out-Null
+$r5 = Remove-RetiredClaudeSkill -Name 'document-formats' -DestRoot $oldRoot -BackupDir $bakDir
+Assert 'an empty folder is removed and reports no backup' ($r5.Status -eq 'removed' -and -not (Test-Path $oldDir) -and -not $r5.ContainsKey('Backup') -and $r5.Detail -match 'empty')
+$threw = $false
+try { Remove-RetiredClaudeSkill -Name '..\document-formats' -DestRoot $oldRoot -BackupDir $bakDir | Out-Null } catch { $threw = $true }
+Assert 'a name that is a path is refused' $threw
+$threwDot = $false
+try { Remove-RetiredClaudeSkill -Name '.' -DestRoot $oldRoot -BackupDir $bakDir | Out-Null } catch { $threwDot = $true }
+Assert 'a name of . is refused, so DestRoot itself is never the target' $threwDot
 
 Write-Host '--- the pinned python goes to the front of the user PATH ---'
 # The regression this catches: on a fresh Windows the only `python` on PATH is
@@ -635,24 +754,25 @@ Assert 'names carry no version constraint' (@($reqNames | Where-Object { $_ -mat
 # markitdown installed bare cannot read pptx or docx: one extra is one format.
 Assert 'markitdown asks for the format extras' ($reqText -match 'markitdown\[[^\]]*docx[^\]]*\]' -and $reqText -match 'markitdown\[[^\]]*pptx[^\]]*\]')
 
-Write-Host '--- the shipped skills can actually run ---'
-# The regression this catches: shipping a skill whose tooling was never
-# installed. Derived from the skill text, so a new skill is covered for free.
-$skillFiles = @(Get-ChildItem -Path (Join-Path $Root 'skills') -Recurse -Filter 'SKILL.md')
-Assert 'skills ship' ($skillFiles.Count -gt 0)
-$skillText = ($skillFiles | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
-
-$modules = @([regex]::Matches($skillText, 'python -m ([A-Za-z0-9_\-]+)') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
-Assert 'at least one skill calls a python module' ($modules.Count -gt 0)
-$unmet = @($modules | Where-Object { $reqNames -notcontains $_ })
-Assert "every python module a skill calls is in requirements.txt (missing: $($unmet -join ', '))" ($unmet.Count -eq 0)
-Assert 'pypdf, which a skill names, is in requirements.txt' ($reqNames -contains 'pypdf')
+# The document-formats skill (now the kw-doc-formats plugin) names pypdf for
+# page selection and calls `python -m markitdown`. Both are pinned here by
+# name because the skill lives in another repo and cannot be derived from.
+Assert 'pypdf, which the document skill names, is in requirements.txt' ($reqNames -contains 'pypdf')
+Assert 'markitdown, which the document skill calls, is in requirements.txt' ($reqNames -contains 'markitdown')
 
 Write-Host '--- nothing points at a skill we do not ship ---'
 $shipped  = @(Get-ChildItem -Path (Join-Path $Root 'skills') -Directory | Select-Object -ExpandProperty Name)
 $hookText = (@(Get-ChildItem -Path (Join-Path $Root 'hooks') -Filter '*.ps1') | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
 Assert 'the docker hook still names a skill as its source of truth' ($hookText -match 'register-corp-certs')
 Assert 'that skill is one we ship' ($shipped -contains 'register-corp-certs')
+
+Write-Host '--- phase 8 removes the old copy only after the plugin is confirmed ---'
+$phase8 = $script:setupText.Substring((Find-Phase 'Claude Code plugins'))
+$phase8 = $phase8.Substring(0, $phase8.IndexOf('# --- 9. Verify ---'))
+Assert 'the retired skill is handled in the plugin phase' ($phase8 -match 'Remove-RetiredClaudeSkill')
+Assert 'and only once the replacing plugin reports installed' ($phase8 -match 'ReplacedBy' -and $phase8 -match "Status -eq 'installed'")
+Assert 'a dry run with plugins skipped does not promise a removal' ($phase8 -match '-not \$SkipPlugins')
+Assert 'the document skill is no longer shipped as a folder' (-not (Test-Path (Join-Path $Root 'skills/document-formats')))
 
 Write-Host '--- which PowerShell Claude Code will run ---'
 # There is no settings key for this. Claude Code probes three fixed paths and

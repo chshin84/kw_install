@@ -265,7 +265,7 @@ git -C 'D:\projects\KW-doc-formats' commit -m "document-formats 스킬을 플러
 
 ---
 
-### Task 2: 엑셀 글자 크기 규칙
+### Task 2: 엑셀 글자 크기 규칙과 CSV BOM 규칙
 
 **Files:**
 - Modify: `D:\projects\KW-doc-formats\skills\document-formats\SKILL.md` (frontmatter description, 「기존 오피스 문서의 내용을 뽑을 때」 절 앞)
@@ -284,12 +284,13 @@ git -C 'D:\projects\KW-doc-formats' commit -m "document-formats 스킬을 플러
 Assert 'the description mentions xlsx' ($docDesc -match 'xlsx')
 Assert 'the body carries the Excel section' ($docFmt -match '(?m)^## 엑셀을 만들 때 항상 지킬 것')
 Assert 'the Excel rule fixes the font size at 11' ($docFmt -match 'size=11')
+Assert 'CSV meant for Excel is written with a BOM' ($docFmt -match 'utf-8-sig')
 ```
 
 - [ ] **Step 2: 실패를 본다**
 
 Run: `pwsh -NoProfile -ExecutionPolicy Bypass -File D:\projects\KW-doc-formats\tests\test_plugin.ps1`
-Expected: `FAIL=3`. 새 셋만 실패한다.
+Expected: `FAIL=4`. 새 넷만 실패한다.
 
 - [ ] **Step 3: description에 엑셀을 더한다**
 
@@ -316,6 +317,23 @@ from openpyxl.styles import Font
 ws["A1"].font = Font(bold=True)             # 크기를 적지 않는다. 11을 물려받는다
 ws["A1"].font = Font(size=11, bold=True)    # 적어야 한다면 11이다
 ```
+
+### 엑셀로 열 CSV는 BOM 있는 UTF-8로 쓴다
+
+파이썬이 UTF-8로 쓴 CSV를 한국어 엑셀에서 더블클릭으로 열면 cp949로 해석해 한글이 전부 깨진다.
+사용자 눈에는 "클로드가 파일을 망쳤다"로 보인다. `PYTHONUTF8=1`이 걸린 PC에서는 파이썬의 기본
+쓰기 인코딩이 UTF-8이라 이 일이 더 잦다. 사용자가 엑셀로 열 CSV는 반드시 `utf-8-sig`로 쓴다.
+BOM이 붙어 엑셀이 UTF-8로 읽는다. 표가 목적이면 CSV 대신 `.xlsx`로 바로 내보내는 편이 낫다.
+인코딩 문제가 아예 없다.
+
+```python
+df.to_csv(path, encoding="utf-8-sig", index=False)   # 엑셀로 열 CSV
+df.to_excel(path_xlsx, index=False)                  # 표가 목적이면 이쪽
+```
+
+읽을 때의 규칙은 위 「파이썬으로 파일을 열 때는 인코딩을 반드시 적는다」 절에 있다. 사내에서
+받은 CSV는 대개 cp949라 `chardet`으로 판별해 읽고, 내가 쓰는 CSV는 `utf-8-sig`로 쓴다. 두 규칙은
+방향이 반대이고 둘 다 지킨다.
 
 ````
 

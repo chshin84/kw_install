@@ -19,15 +19,16 @@
 
     Phases:
       0. Preflight     - pwsh version, payload, winget, admin check
-      1. CA bundle     - asked for with Y/N at launch, then bake certs\ into
-                         one PEM and set the cert env vars
-      2. Programs      - Python 3.12 (pinned), git, Node.js LTS, via winget
+      1. CA bundle     - decided by measurement, not by a question, then bake
+                         certs\ into one PEM and set the cert env vars
+      2. Programs      - Python 3.12 (pinned), git, Node.js LTS, Poppler,
+                         via winget
       3. Libraries     - requirements.txt into the pinned Python
       4. Claude Code   - user profile, never elevated
       5. User PATH     - %USERPROFILE%\.local\bin
       6. Terminal      - Windows Terminal font, and a shortcut that opens it
       7. Claude wiring - skills, docker hook, settings.json, permission mode
-      8. Plugins       - claude plugin marketplace add + install
+      8. Plugins       - claude plugin marketplace add + install; retire the old skill copy
       9. Verify        - a real HTTPS request through the bundle
 
     Certificates come first on purpose. Everything after phase 1 that reaches
@@ -68,9 +69,10 @@
     cloned, and without python or node the last phase cannot verify.
 
 .PARAMETER SkipPythonLibs
-    Skip the requirements.txt install. The shipped document-formats skill calls
-    the tools it lists, so a machine set up this way cannot read .pptx, .docx
-    or .pdf even though every other phase went green.
+    Skip the requirements.txt install. The document-formats skill (installed
+    as the kw-doc-formats plugin in phase 8) calls the tools listed there, so a
+    machine set up this way cannot read .pptx, .docx or .pdf even though
+    every other phase went green.
 
 .PARAMETER SkipClaudeInstall
     Skip Claude Code.
@@ -79,14 +81,18 @@
     Do not register the docker command hook.
 
 .PARAMETER SkipSkills
-    Do not copy skills into the personal skills folder.
+    Do not copy skills into the personal skills folder. The phase 8 retirement
+    of the old document-formats copy is not governed by this switch; it waits
+    on the plugin install instead.
 
 .PARAMETER SkipTerminal
     Leave Windows Terminal alone: no font settings and no shortcut. Nothing
     else depends on that phase, so this costs only the convenience.
 
 .PARAMETER SkipPlugins
-    Do not install any Claude Code plugin.
+    Do not install any Claude Code plugin. The old personal copy of
+    document-formats is then left in place too, because the retirement waits on
+    a confirmed plugin install.
 
 .PARAMETER RespectExecutionPolicy
     Make Claude Code honor the machine execution policy instead of its own
@@ -155,6 +161,7 @@ $RequirementsPath = Join-Path $ScriptDir 'requirements.txt'
 # payload; two would drift the first time somebody redrew only one of them.
 # The built copy goes on the local disk because a shortcut pointing at the
 # share would lose its picture the moment the machine left the network.
+# Also where phase 8 leaves the backup of a retired skill: the one folder this installer owns.
 $IconPng = Join-Path $ScriptDir 'claudecode-color.png'
 $IconDir = Join-Path ($env:LOCALAPPDATA ?? $env:TEMP) 'kw-install'
 
@@ -229,18 +236,24 @@ $script:Programs = @(
 # One row per plugin. Both the settings.json declaration and the CLI install
 # are generated from this list, so adding a plugin is one line and the two
 # cannot drift apart.
-# Three of the four come from the one official marketplace on purpose.
+# Three of the five come from the one official marketplace on purpose.
 # superpowers and frontend-design are also published by their own marketplaces,
 # and taking them from there meant a machine ended up carrying the same plugin
 # twice under two marketplace names - two copies of the same skills loaded, and
 # the same name listed twice for the user to pick between. Sourcing them from
-# claude-plugins-official collapses that, and drops the marketplace count from
-# four to two. document-skills is not in that marketplace, so it keeps its own.
+# claude-plugins-official collapses that. document-skills is not in that
+# marketplace, so it keeps its own. kw-doc-formats is our own document skill,
+# published from its own repo; AutoUpdate is set because third-party
+# marketplaces default to no auto-update and the whole point of shipping the
+# skill as a plugin is that a fix reaches installed machines without a rerun.
+# The kw-doc-formats strings here must match the manifests in
+# KiwoomAX/KW-doc-formats, and no automated check spans the two repos.
 $script:Plugins = @(
     @{ Id = 'superpowers@claude-plugins-official';      Marketplace = 'claude-plugins-official'; Repo = 'anthropics/claude-plugins-official'   }
     @{ Id = 'document-skills@anthropic-agent-skills';   Marketplace = 'anthropic-agent-skills';  Repo = 'anthropics/skills'                    }
     @{ Id = 'playwright@claude-plugins-official';       Marketplace = 'claude-plugins-official'; Repo = 'anthropics/claude-plugins-official'   }
     @{ Id = 'frontend-design@claude-plugins-official';  Marketplace = 'claude-plugins-official'; Repo = 'anthropics/claude-plugins-official'   }
+    @{ Id = 'kw-doc-formats@kw-doc-formats';            Marketplace = 'kw-doc-formats';          Repo = 'KiwoomAX/KW-doc-formats'; AutoUpdate = $true }
 )
 
 # Plugin ids this installer used to declare and no longer does. Merge-ClaudeSettings
@@ -252,6 +265,15 @@ $script:RetiredPlugins = @(
     'superpowers@superpowers-marketplace'
     'frontend-design@claude-code-plugins'
 )
+
+# The one skill this installer used to copy into the personal skills folder
+# and now installs as a plugin instead. A personal copy left behind loads
+# twice under the same name, so phase 8 removes it - but only once the
+# replacing plugin is confirmed on disk, and only if the folder holds nothing
+# but the SKILL.md this installer wrote. A single record, not a list: the
+# other shipped skill (register-corp-certs) stays a personal skill by design.
+# ReplacedBy names the plugin id phase 8 waits for.
+$script:RetiredSkill = @{ Name = 'document-formats'; ReplacedBy = 'kw-doc-formats@kw-doc-formats' }
 
 # ---------------------------------------------------------------
 # Output
@@ -825,6 +847,53 @@ function Install-ClaudeSkills {
     return @{ Status = 'ok'; Installed = $installed; Unchanged = $unchanged; Empty = $empty }
 }
 
+# Removes the personal copy of a skill that now ships as a plugin. Status is
+# absent (nothing there), removed (the folder held only the SKILL.md this
+# installer wrote, or nothing at all), kept (it holds more than that, so it is
+# somebody's work), or skipped (WhatIf). The SKILL.md is copied to BackupDir
+# before the folder goes, as every other file this installer rewrites is backed
+# up; an empty folder leaves no backup because there is nothing to copy. Only
+# the named folder is ever removed; DestRoot is never touched.
+function Remove-RetiredClaudeSkill {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][string]$DestRoot,
+        [Parameter(Mandatory)][string]$BackupDir,
+        [switch]$WhatIfOnly
+    )
+    # Name is one folder under DestRoot, never a path: a separator, '..' or '.'
+    # would point Remove-Item elsewhere - '.' at DestRoot itself. A whitelist,
+    # not a list of things to reject, so nothing unforeseen slips past.
+    if ($Name -notmatch '^[A-Za-z0-9._-]+$' -or $Name -eq '.' -or $Name -eq '..') { throw "Remove-RetiredClaudeSkill: Name must be a bare folder name, got '$Name'" }
+    $dir = Join-Path $DestRoot $Name
+    if (-not (Test-Path $dir)) { return @{ Status = 'absent'; Detail = "no old copy at $dir" } }
+
+    $files   = @(Get-ChildItem -LiteralPath $dir -Recurse -Force -File)
+    $subdirs = @(Get-ChildItem -LiteralPath $dir -Recurse -Force -Directory)
+    # An empty folder is nobody's work either - somebody deleted the SKILL.md by
+    # hand - and reporting it kept would repeat the same untrue line on every
+    # run. It goes the same way, except that there is nothing to back up.
+    $empty = ($subdirs.Count -eq 0) -and ($files.Count -eq 0)
+    if ($empty) {
+        if ($WhatIfOnly) { return @{ Status = 'skipped'; Detail = "[WhatIf] would remove the empty folder $dir" } }
+        Remove-Item -LiteralPath $dir -Recurse -Force
+        return @{ Status = 'removed'; Detail = "old copy removed: $dir (the folder was empty; nothing to back up)" }
+    }
+    $onlySkill = ($subdirs.Count -eq 0) -and ($files.Count -eq 1) -and ($files[0].Name -eq 'SKILL.md')
+    if (-not $onlySkill) {
+        return @{ Status = 'kept'; Detail = "$dir holds more than the SKILL.md this installer wrote; left in place" }
+    }
+
+    $backup = Join-Path $BackupDir "$Name.SKILL.md.bak"
+    if ($WhatIfOnly) {
+        return @{ Status = 'skipped'; Detail = "[WhatIf] would back up $($files[0].FullName) to $backup and remove $dir" }
+    }
+    if (-not (Test-Path $BackupDir)) { New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null }
+    Copy-Item -LiteralPath $files[0].FullName -Destination $backup -Force
+    Remove-Item -LiteralPath $dir -Recurse -Force
+    return @{ Status = 'removed'; Detail = "old copy removed: $dir (backup at $backup)"; Backup = $backup }
+}
+
 # Which PowerShell Claude Code runs cannot be set. There is no settings key for
 # it - the binary carries no powershellPath and no CLAUDE_CODE_POWERSHELL_PATH.
 # It probes these three places in order and, finding no pwsh 7, falls back to
@@ -1264,9 +1333,16 @@ function Merge-ClaudeSettings {
         if ($settings['extraKnownMarketplaces'] -isnot [hashtable]) { $settings['extraKnownMarketplaces'] = @{} }
         if ($settings['enabledPlugins'] -isnot [hashtable]) { $settings['enabledPlugins'] = @{} }
         foreach ($pl in $script:Plugins) {
-            $settings['extraKnownMarketplaces'][$pl.Marketplace] = @{
-                source = @{ source = 'github'; repo = $pl.Repo }
+            $entry = @{ source = @{ source = 'github'; repo = $pl.Repo } }
+            # autoUpdate is the user's once they have set it, on or off. It is
+            # filled in only when absent, and only for rows that ask for it.
+            $prior = $settings['extraKnownMarketplaces'][$pl.Marketplace]
+            if ($prior -is [hashtable] -and $prior.ContainsKey('autoUpdate')) {
+                $entry['autoUpdate'] = $prior['autoUpdate']
+            } elseif ($pl.AutoUpdate) {
+                $entry['autoUpdate'] = $true
             }
+            $settings['extraKnownMarketplaces'][$pl.Marketplace] = $entry
             $settings['enabledPlugins'][$pl.Id] = $true
         }
 
@@ -1311,6 +1387,73 @@ function Merge-ClaudeSettings {
 }
 
 
+# The CLI records every install it completed in installed_plugins.json, one
+# key per plugin id. That file is the only evidence used: a marketplace can be
+# added while the install fails, and a repo name can contain a marketplace
+# name (KiwoomAX/KW-doc-formats holds kw-doc-formats, and -match ignores
+# case), so the marketplace registry proves nothing about the plugin.
+#
+# The key alone is not proof either. The record's value is an array of install
+# entries, each with an installPath, and a record can outlive the files it
+# names - an uninstall that half finished, a cache wiped by hand. Phase 8
+# deletes the user's old personal skill copy on the strength of this answer, so
+# at least one of those paths has to still be on disk before it is a yes.
+function Test-PluginInstalled {
+    param([Parameter(Mandatory)][string]$RegistryPath, [Parameter(Mandatory)][string]$Id)
+    if (-not (Test-Path $RegistryPath)) { return $false }
+    try { $reg = [IO.File]::ReadAllText($RegistryPath) | ConvertFrom-Json -AsHashtable -Depth 20 }
+    catch { return $false }
+    if ($reg -isnot [hashtable] -or $reg['plugins'] -isnot [hashtable]) { return $false }
+    if (-not $reg['plugins'].ContainsKey($Id)) { return $false }
+    foreach ($entry in @($reg['plugins'][$Id])) {
+        if ($entry -isnot [hashtable]) { continue }
+        $path = $entry['installPath']
+        if ($path -and (Test-Path -LiteralPath $path)) { return $true }
+    }
+    return $false
+}
+
+# Third-party marketplaces have auto-update off by default; this switches it
+# on for one named marketplace in the registry the /plugin toggle writes.
+# Only that entry is touched, a value already present - true or false - is
+# the user's and stays, a .bak is left, and the rewritten text is parsed
+# again and checked for the same top-level keys before it replaces the file.
+# Not reached under -WhatIfOnly: the
+# caller never installs then, so there is nothing to switch on.
+function Set-MarketplaceAutoUpdate {
+    param(
+        [Parameter(Mandatory)][string]$RegistryPath,
+        [Parameter(Mandatory)][string]$Marketplace
+    )
+    if (-not (Test-Path $RegistryPath)) { return @{ Status = 'failed'; Detail = "no registry at $RegistryPath" } }
+    try { $reg = [IO.File]::ReadAllText($RegistryPath) | ConvertFrom-Json -AsHashtable -Depth 20 }
+    catch { return @{ Status = 'failed'; Detail = "registry is not JSON: $($_.Exception.Message)" } }
+    if ($reg -isnot [hashtable] -or -not $reg.ContainsKey($Marketplace) -or $reg[$Marketplace] -isnot [hashtable]) {
+        return @{ Status = 'failed'; Detail = "$Marketplace is not in $RegistryPath" }
+    }
+    if ($reg[$Marketplace].ContainsKey('autoUpdate')) {
+        return @{ Status = 'unchanged'; Detail = "autoUpdate already $($reg[$Marketplace]['autoUpdate']) for $Marketplace" }
+    }
+    $reg[$Marketplace]['autoUpdate'] = $true
+    $json = $reg | ConvertTo-Json -Depth 20
+    # Parsing is not enough on its own. ConvertTo-Json that ran out of depth or
+    # dropped an entry still yields valid JSON, and a registry short one
+    # marketplace would parse clean and lose that marketplace for good. So the
+    # rewritten text has to carry the same top-level keys as the original.
+    try { $round = $json | ConvertFrom-Json -AsHashtable -Depth 20 }
+    catch { return @{ Status = 'failed'; Detail = 'rewritten registry did not parse; nothing written' } }
+    $before = @($reg.Keys | Sort-Object)
+    $after  = @(if ($round -is [hashtable]) { $round.Keys | Sort-Object } else { @() })
+    if (($before -join "`n") -ne ($after -join "`n")) {
+        return @{ Status = 'failed'; Detail = 'rewritten registry lost or gained a marketplace; nothing written' }
+    }
+    try {
+        Copy-Item -LiteralPath $RegistryPath -Destination "$RegistryPath.bak" -Force
+        [IO.File]::WriteAllText($RegistryPath, $json, [Text.UTF8Encoding]::new($false))
+    } catch { return @{ Status = 'failed'; Detail = "registry not written: $($_.Exception.Message)" } }
+    return @{ Status = 'set'; Detail = "autoUpdate on for $Marketplace (backup at $RegistryPath.bak)" }
+}
+
 # The plugin cache and marketplace registry live outside settings.json, in
 # ~\.claude\plugins. Only the CLI populates them, so declaring the keys is not
 # the same as having the plugin on disk.
@@ -1327,7 +1470,9 @@ function Install-ClaudePlugins {
         $blocked = 'git is not available, and a marketplace is cloned with git.'
     }
 
-    $registry = Join-Path $env:USERPROFILE '.claude/plugins/known_marketplaces.json'
+    $pluginsDir = Join-Path $env:USERPROFILE '.claude/plugins'
+    $installed  = Join-Path $pluginsDir 'installed_plugins.json'
+    $registry   = Join-Path $pluginsDir 'known_marketplaces.json'
     $results = @()
     foreach ($pl in $script:Plugins) {
         if ($blocked) {
@@ -1340,15 +1485,21 @@ function Install-ClaudePlugins {
         }
         try {
             # Adding a marketplace that is already known is a success, not a
-            # fault, so neither call's exit code is trusted. The registry is.
+            # fault, so neither call's exit code is trusted. installed_plugins.json is.
             $out  = & $ClaudeExe plugin marketplace add $pl.Repo 2>&1 | Out-String
             $out += & $ClaudeExe plugin install $pl.Id 2>&1 | Out-String
         } catch {
             $results += @{ Id = $pl.Id; Status = 'failed'; Detail = $_.Exception.Message }
             continue
         }
-        if ((Test-Path $registry) -and ([IO.File]::ReadAllText($registry) -match [regex]::Escape($pl.Marketplace))) {
-            $results += @{ Id = $pl.Id; Status = 'installed'; Detail = "$($pl.Marketplace) registered in $registry" }
+        if (Test-PluginInstalled -RegistryPath $installed -Id $pl.Id) {
+            $detail = "recorded in $installed"
+            if ($pl.AutoUpdate) {
+                $au = Set-MarketplaceAutoUpdate -RegistryPath $registry -Marketplace $pl.Marketplace
+                $detail += "; $($au.Detail)"
+                if ($au.Status -eq 'failed') { Add-Warning "auto-update not enabled for $($pl.Marketplace) - $($au.Detail)" }
+            }
+            $results += @{ Id = $pl.Id; Status = 'installed'; Detail = $detail }
         } else {
             $results += @{ Id = $pl.Id; Status = 'failed'; Detail = $out.Trim() }
         }
@@ -1880,9 +2031,10 @@ function Invoke-Setup {
     }
 
     # --- 3. Python libraries ---
-    # These are not optional decoration. The document-formats skill installed in
-    # phase 6 calls `python -m markitdown` and names pypdf, so without this the
-    # machine goes green everywhere and still cannot open a .pptx.
+    # These are not optional decoration. The document-formats skill, which
+    # phase 8 installs as the kw-doc-formats plugin, calls `python -m
+    # markitdown` and names pypdf, so without this the machine goes green
+    # everywhere and still cannot open a .pptx.
     Write-Step '3/9  Python libraries'
     if ($SkipPythonLibs) {
         Write-Warn2 '-SkipPythonLibs specified. Reading .pptx, .docx and .pdf will not work.'
@@ -2193,6 +2345,7 @@ function Invoke-Setup {
 
     # --- 8. Plugins ---
     Write-Step '8/9  Claude Code plugins'
+    $plugins = @()
     if ($SkipPlugins) {
         Write-Warn2 '-SkipPlugins specified.'
     } else {
@@ -2208,6 +2361,38 @@ function Invoke-Setup {
                 }
             }
         }
+    }
+
+    # The document skill used to be copied into the personal skills folder and
+    # now arrives as a plugin. The leftover copy goes only once the replacing
+    # plugin is confirmed on disk: removed first and installed never, the
+    # machine would have no document skill at all. A dry run reports what a
+    # real run would do, so it too stays quiet when plugins are skipped.
+    $skillsRoot = Join-Path $env:USERPROFILE '.claude/skills'
+    $oldSkill   = $script:RetiredSkill
+    $replaced   = @($plugins | Where-Object { $_.Id -eq $oldSkill.ReplacedBy -and $_.Status -eq 'installed' }).Count -gt 0
+    if (($WhatIfOnly -and -not $SkipPlugins) -or $replaced) {
+        try {
+            $rm = Remove-RetiredClaudeSkill -Name $oldSkill.Name -DestRoot $skillsRoot -BackupDir $IconDir -WhatIfOnly:$WhatIfOnly
+        } catch {
+            $rm = @{ Status = 'failed'; Detail = $_.Exception.Message }
+        }
+        switch ($rm.Status) {
+            'removed' { Write-Ok $rm.Detail }
+            'skipped' { Write-Warn2 $rm.Detail }
+            'absent'  { }
+            'kept'    {
+                Write-Warn2 $rm.Detail
+                Add-Warning "old skill copy '$($oldSkill.Name)' kept - it holds files this installer did not write"
+            }
+            default   {
+                Write-Err2 "Old skill copy not handled: $($rm.Detail)"
+                Add-Warning "old skill copy '$($oldSkill.Name)' not handled - $($rm.Detail)"
+            }
+        }
+    } elseif (Test-Path (Join-Path $skillsRoot $oldSkill.Name)) {
+        Write-Warn2 "Old skill copy '$($oldSkill.Name)' left in place: $($oldSkill.ReplacedBy) is not confirmed installed. The settings declaration still brings that plugin in on the next Claude Code start, and running this installer again afterwards clears the old copy."
+        Add-Warning "old skill copy '$($oldSkill.Name)' kept - the replacing plugin is not confirmed; the settings declaration still brings it in on the next Claude Code start, so run this installer again afterwards to clear the old copy"
     }
 
     # --- 9. Verify ---

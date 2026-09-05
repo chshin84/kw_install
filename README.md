@@ -89,7 +89,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -WhatIfOnly
 | PATH | `%USERPROFILE%\.local\bin`을 사용자 PATH에 넣어 `claude`를 이름만으로 실행하게 한다 |
 | 터미널 | 윈도우 터미널의 글꼴을 굴림체 10으로, 글자 가장자리를 다듬지 않게 맞춘다. 그리고 파워셸 7 프로필을 바로 여는 바로 가기를 시작 메뉴와 바탕화면에 놓는다. 여기서 실패해도 설치는 계속된다 |
 | 클로드 연동 | 스킬을 복사하고 도커 훅을 등록하며 `settings.json`과 `CLAUDE.md`를 병합한다 |
-| 플러그인 | 마켓플레이스를 등록하고 플러그인 넷을 설치한다 |
+| 플러그인 | 마켓플레이스를 등록하고 플러그인 다섯을 설치한다. 이전 판이 복사해 둔 `document-formats` 스킬 사본은 그 플러그인이 확인된 뒤에 사본을 남기고 걷어낸다 |
 | 검증 | 실제 HTTPS로 붙어 본다. 번들을 구웠으면 그 번들만 신뢰하도록 강제하고, 안 구웠으면 이 PC의 기본 신뢰로 붙는다. 파이썬에게 한 번, 클로드 코드가 도는 노드에게 `api.anthropic.com`으로 한 번 따로 묻는다 |
 
 **인증서가 맨 앞인 이유.** 그 뒤로 네트워크를 타는 모든 것이 사내 SSL 검사 장비를 지난다.
@@ -103,9 +103,16 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -WhatIfOnly
 ## 이 PC에 생기는 변화
 
 프로그램과 파이썬 라이브러리, 그리고 클로드 코드의 플러그인과 스킬이 들어온다. 사용자 파일은
-넷을 고친다 — 클로드 코드의 `settings.json` 과 `CLAUDE.md`, 윈도우 터미널의 설정, 그리고 curl
-설정 파일인 `.curlrc` 다. 앞의 셋은 통째로 덮지 않고 필요한 값만 고치며 고치기 전 사본을
-`.bak` 으로 남긴다. `.curlrc` 에는 줄을 덧붙이기만 하고 사본은 남기지 않는다.
+다섯을 고친다.
+
+- 클로드 코드의 `settings.json`
+- 클로드 코드의 `CLAUDE.md`
+- 클로드 코드의 플러그인 레지스트리 `known_marketplaces.json`
+- 윈도우 터미널의 설정
+- curl 설정 파일 `.curlrc`
+
+`.curlrc` 를 뺀 넷은 통째로 덮지 않고 필요한 값만 고치며 고치기 전 사본을 `.bak` 으로 남긴다.
+`.curlrc` 에는 줄을 덧붙이기만 하고 사본은 남기지 않는다.
 
 무엇을 왜 넣었는지, 설정 파일의 어느 줄이 어떻게 바뀌는지, 어떤 파일과 환경변수가 어디에
 놓이는지는 `docs\CHANGES-ON-THIS-PC.md` 에 항목별로 적혀 있다.
@@ -136,7 +143,6 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -WhatIfOnly
 | `claudecode-color.png` | 바로 가기 아이콘의 원본이다. 설치기가 이것을 `.ico`로 구워 쓰고, 지우면 아이콘이 조용히 파워셸 것으로 물러선다 |
 | `certs\` | 공용 인증서 목록(`combined_cacert.pem`)이 들어 있다. 파이썬이 없는 새 PC에서 인증서 판정을 하려면 이것이 있어야 한다. 회사 인증서는 이 PC의 윈도 저장소에서 가져오므로 없는 것이 정상이며, 언제 채우는지는 `README.txt` 에 적혀 있다 |
 | `hooks\docker-cert-reminder.ps1` | 도커 명령 훅의 본체다. 등록할 때 각 PC로 복사된다 |
-| `skills\document-formats\` | 한글·구형 오피스·PDF를 다루는 사내 노하우다 |
 | `skills\register-corp-certs\` | 인증서 지침의 정본이다. 도커 훅이 이것을 가리킨다 |
 | `templates\` | 참고 자료가 아니라 실행 중에 읽히는 입력이다. 마무리 안내(`closing-ko.txt`), 문의처(`support-ko.txt`), 그리고 사용자 `CLAUDE.md`에 병합되는 개인 기억 블록(`personal-memory-ko.md`)이 들어 있다. 지우면 안내가 영어로 물러서고 개인 기억 병합이 죽는다 |
 | `tests\test_setup.ps1` | 계약을 검사한다 |
@@ -158,3 +164,4 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1 -WhatIfOnly
 - `certs\README.txt` — `certs\` 폴더를 언제 무엇으로 채우는지 적어 두었다.
 - `skills\register-corp-certs\SKILL.md` — 컨테이너와 WSL 안에서 인증서를 다루는 방법을 적어
   두었다.
+- `https://github.com/KiwoomAX/KW-doc-formats` — 문서 형식 처리 스킬(`kw-doc-formats:document-formats`)이 사는 플러그인 레포다. 이 설치기가 깔며, 스킬을 고칠 때는 그곳을 고친다.
