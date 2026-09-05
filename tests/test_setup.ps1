@@ -341,6 +341,27 @@ Assert 'a value the user set is not overwritten' ($s3.Status -eq 'unchanged' -an
 $s4 = Set-MarketplaceAutoUpdate -RegistryPath $reg -Marketplace 'unknown'
 Assert 'an unregistered marketplace is reported, not added' ($s4.Status -eq 'failed')
 
+Write-Host '--- a backup or write failure is reported, not thrown ---'
+# Copy-Item throws when the .bak path is locked by another handle. That must
+# come back as Status = 'failed', not an uncaught exception that would abort
+# the whole plugin loop in Install-ClaudePlugins and lose the other results.
+$reg2 = Join-Path $Tmp 'known_marketplaces2.json'
+$reg2Text = @'
+{
+  "kw-doc-formats": { "source": { "source": "github", "repo": "KiwoomAX/KW-doc-formats" }, "installLocation": "C:\\y" }
+}
+'@
+[IO.File]::WriteAllText($reg2, $reg2Text, [Text.UTF8Encoding]::new($false))
+$before2 = [IO.File]::ReadAllText($reg2)
+$lock = [IO.File]::Open("$reg2.bak", [IO.FileMode]::Create, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+try {
+    $s5 = Set-MarketplaceAutoUpdate -RegistryPath $reg2 -Marketplace 'kw-doc-formats'
+    Assert 'a locked backup path is reported as failed' ($s5.Status -eq 'failed')
+    Assert 'the registry is untouched when the backup fails' (([IO.File]::ReadAllText($reg2)) -eq $before2)
+} finally {
+    $lock.Dispose()
+}
+
 Write-Host '--- repairing a machine that still prompts ---'
 # ask beats allow in Claude Code. If our three patterns are not swept out of
 # ask, adding them to allow changes nothing and the prompts keep coming.

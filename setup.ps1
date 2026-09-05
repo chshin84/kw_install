@@ -1360,8 +1360,10 @@ function Set-MarketplaceAutoUpdate {
     $json = $reg | ConvertTo-Json -Depth 20
     try { $null = $json | ConvertFrom-Json }
     catch { return @{ Status = 'failed'; Detail = 'rewritten registry did not parse; nothing written' } }
-    Copy-Item -LiteralPath $RegistryPath -Destination "$RegistryPath.bak" -Force
-    [IO.File]::WriteAllText($RegistryPath, $json, [Text.UTF8Encoding]::new($false))
+    try {
+        Copy-Item -LiteralPath $RegistryPath -Destination "$RegistryPath.bak" -Force
+        [IO.File]::WriteAllText($RegistryPath, $json, [Text.UTF8Encoding]::new($false))
+    } catch { return @{ Status = 'failed'; Detail = "registry not written: $($_.Exception.Message)" } }
     return @{ Status = 'set'; Detail = "autoUpdate on for $Marketplace (backup at $RegistryPath.bak)" }
 }
 
