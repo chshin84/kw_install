@@ -23,8 +23,8 @@
                          certs\ into one PEM and set the cert env vars
       2. Programs      - Python 3.12 (pinned), git, Node.js LTS, Poppler,
                          via winget
-      3. Libraries     - set PYTHONUTF8=1, then requirements.txt into the
-                         pinned Python
+      3. Libraries     - PYTHONUTF8=1 if python still defaults to a code page,
+                         then requirements.txt into the pinned Python
       4. Claude Code   - user profile, never elevated
       5. User PATH     - %USERPROFILE%\.local\bin
       6. Terminal      - Windows Terminal font, and a shortcut that opens it
@@ -670,6 +670,34 @@ function Set-CertEnvironment {
         $results += @{ Name = $name; Old = $old; New = $BundlePath; Changed = ($old -ne $BundlePath) }
     }
     return ,$results
+}
+
+# What encoding does python fall back to when nobody says? On a Korean Windows
+# that is cp949, and anything Claude wrote as UTF-8 comes back as mojibake.
+#
+# PYTHONUTF8 is cleared in the child on purpose. Measuring with it inherited
+# would answer utf-8 on every machine that already has it, which is exactly the
+# machine whose real default we cannot see any other way. Returns $null when
+# python is missing or answers with something that is not an encoding name -
+# the caller must not guess from silence.
+function Get-PythonDefaultEncoding {
+    param([Parameter(Mandatory)][string]$PythonExe)
+
+    if (-not (Test-Path $PythonExe)) { return $null }
+    $saved = $env:PYTHONUTF8
+    try {
+        Remove-Item -Path 'Env:PYTHONUTF8' -ErrorAction SilentlyContinue
+        $out = & $PythonExe -c 'import locale;print(locale.getpreferredencoding(False))' 2>$null |
+               Select-Object -First 1
+    } catch {
+        $out = $null
+    } finally {
+        if ($null -ne $saved) { Set-Item -Path 'Env:PYTHONUTF8' -Value $saved }
+    }
+    if (-not $out) { return $null }
+    $out = $out.Trim().ToLowerInvariant()
+    if ($out -notmatch '^[a-z0-9_.\-]+$') { return $null }
+    return $out
 }
 
 # Python reads its default encoding for open() and for stdio from the system
@@ -2063,23 +2091,37 @@ function Invoke-Setup {
     # what they had and this run's own python calls are untouched.
     $utf8Summary = 'not touched'
     if ($WhatIfOnly) {
-        Write-Warn2 '[WhatIf] would set PYTHONUTF8 to 1'
+        Write-Warn2 '[WhatIf] would check the python default encoding and set PYTHONUTF8 if needed'
     } else {
         try {
-            $utf8 = Set-PythonUtf8Environment -Scope 'User'
-            if ($utf8.Changed) {
-                $utf8Summary = 'set to 1'
-                Write-Ok 'PYTHONUTF8 set to 1: python defaults to UTF-8 in new windows'
-            } elseif ($utf8.Old -eq '1') {
+            $utf8Now = [Environment]::GetEnvironmentVariable('PYTHONUTF8', 'User')
+            if ($utf8Now -eq '1') {
                 $utf8Summary = 'already 1'
                 Write-Ok 'PYTHONUTF8 already 1'
-            } elseif ($utf8.Old -eq '0') {
+            } elseif ($utf8Now -eq '0') {
                 $utf8Summary = '0 (left alone)'
                 Write-Ok 'PYTHONUTF8 is 0: left alone, python keeps the system code page'
+            } elseif ($null -ne $utf8Now) {
+                $utf8Summary = "'$utf8Now' (left alone)"
+                Write-Warn2 "PYTHONUTF8 is '$utf8Now', left alone - python will not default to UTF-8"
+                Add-Warning "PYTHONUTF8 is '$utf8Now' - set it to 1 by hand, or to 0 to keep it off"
             } else {
-                $utf8Summary = "'$($utf8.Old)' (left alone)"
-                Write-Warn2 "PYTHONUTF8 is '$($utf8.Old)', left alone - python will not default to UTF-8"
-                Add-Warning "PYTHONUTF8 is '$($utf8.Old)' - set it to 1 by hand, or to 0 to keep it off"
+                # Nothing set yet, so ask python what it would do on its own.
+                $pyProbe = Resolve-PinnedPython -Version $script:PythonVersion
+                if (-not $pyProbe) { $pyProbe = (Get-Command python -ErrorAction SilentlyContinue).Source }
+                $pyEnc = if ($pyProbe) { Get-PythonDefaultEncoding -PythonExe $pyProbe } else { $null }
+                if ($null -eq $pyEnc) {
+                    $utf8Summary = 'not set (encoding not measured)'
+                    Write-Warn2 'cannot read python default encoding: PYTHONUTF8 not set'
+                    Add-Warning 'python default encoding could not be measured - PYTHONUTF8 left unset'
+                } elseif ($pyEnc -ne 'utf-8') {
+                    $null = Set-PythonUtf8Environment -Scope 'User'
+                    $utf8Summary = "set to 1 (was $pyEnc)"
+                    Write-Ok "python defaults to ${pyEnc}: PYTHONUTF8 set to 1"
+                } else {
+                    $utf8Summary = 'not needed (already utf-8)'
+                    Write-Ok 'python already defaults to utf-8: PYTHONUTF8 not needed'
+                }
             }
         } catch {
             $utf8Summary = "not set ($($_.Exception.Message))"

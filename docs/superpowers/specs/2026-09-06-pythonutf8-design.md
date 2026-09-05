@@ -45,7 +45,11 @@
 | 현재 세션에도 쓰나 | 안 쓴다 | 이 설치 실행 안에서 이 변수를 읽을 곳이 없다. 실행 도중에 파이썬 모드를 바꾸면 뒤 단계가 띄우는 파이썬의 조건이 달라지는데, 얻을 것이 없다 |
 | 언제 세우나 | 3단계 첫머리 | 파이썬을 다루는 단계다. 세션에 안 쓰므로 다른 호출에 영향이 없고, 배치는 사람이 읽기 좋은 자리로만 고른다 |
 | `-SkipPythonLibs`와의 관계 | 그 스위치와 무관하게 세운다 | 라이브러리를 안 깔아도 파이썬은 깔린다 |
-| 값이 없으면 | `1`로 세운다 | 이 작업의 목적이다 |
+| 세우기 전에 재나 | **잰다.** 파이썬에게 기본 인코딩을 물어본다 | 재지 않고 세우면 그 변수가 필요했는지 모른 채로 끝난다. 재면 화면과 요약에 무엇을 왜 고쳤는지 적을 수 있다 |
+| 무엇으로 재나 | 고정한 3.12에게 `PYTHONUTF8`을 비운 채 `locale.getpreferredencoding(False)`를 묻는다 | 변수를 비우지 않고 재면 이미 선 값 때문에 늘 UTF-8로 보인다. 실측으로 확인했다 |
+| 잰 값이 UTF-8이면 | 세우지 않고 초록으로 알린다 | 고칠 것이 없다 |
+| 잰 값이 UTF-8이 아니면 | `1`로 세운다 | 이 작업의 목적이다 |
+| 재지 못하면 | 세우지 않고 경고로 알린다 | 파이썬이 없거나 대답하지 않는 PC다. 짐작으로 사용자 환경변수를 고치지 않는다 |
 | 값이 `1`이면 | 그대로 두고 초록으로 알린다 | 멱등이다 |
 | 값이 `0`이면 | 그대로 두고 **초록으로** 알린다 | `0`은 이 문서가 안내하는 끄는 방법이다. 의도된 상태를 경고로 표시하면, 끈 사람이 설치기를 돌릴 때마다 지울 수 없는 경고를 받는다 |
 | 값이 `0`도 `1`도 아니면 | 그대로 두되 **경고로** 알린다 | 뜻을 알 수 없는 값이다. 존중하되 목적이 안 이뤄졌음을 숨기지 않는다 |
@@ -56,9 +60,14 @@
 ## 함수의 계약
 
 ```
+Get-PythonDefaultEncoding -PythonExe <경로>
+  -> <인코딩 이름 문자열> 또는 $null (못 재면)
+
 Set-PythonUtf8Environment [-Scope User|Process]
   -> @{ Old = <옛 값 또는 $null>; Changed = <bool> }
 ```
+
+`Get-PythonDefaultEncoding`은 `PYTHONUTF8`을 비운 자식 프로세스에서 잰다. 파이썬이 없거나 대답이 인코딩 이름으로 보이지 않으면 `$null`을 돌려준다. 짐작하지 않는다.
 
 - `Old`는 `[Environment]::GetEnvironmentVariable('PYTHONUTF8', $Scope)`로 읽는다. `Scope`가 정하는 저장소만 본다. 시스템 범위는 어느 쪽에서도 보지 않는다.
 - `Old`가 `$null`이면 `1`로 쓰고 `Changed`가 참이다. 부르는 쪽이 읽는 것은 이 둘뿐이라 `Name`과 `New`는 돌려주지 않는다.
@@ -69,14 +78,18 @@ Set-PythonUtf8Environment [-Scope User|Process]
 
 3단계 안에서 찍는 것이다. 판정은 `Changed`와 `Old`로 한다.
 
-| `Changed` | `Old` | 어느 함수로 | 문구 |
-|---|---|---|---|
-| 참 | `$null` | `Write-Ok` | `PYTHONUTF8 set to 1: python defaults to UTF-8 in new windows` |
-| 거짓 | `1` | `Write-Ok` | `PYTHONUTF8 already 1` |
-| 거짓 | `0` | `Write-Ok` | `PYTHONUTF8 is 0: left alone, python keeps the system code page` |
-| 거짓 | 그 밖 | `Write-Warn2` + `Add-Warning` | `PYTHONUTF8 is '<옛 값>', left alone - python will not default to UTF-8` |
-| — | — | `Write-Warn2` | `[WhatIf] would set PYTHONUTF8 to 1` |
-| 예외 | — | `Write-Warn2` + `Add-Warning` | `PYTHONUTF8 not set: <오류>` |
+값이 이미 있으면 재지 않는다. 그 값을 존중하기로 했으므로 재 봐야 할 일이 없다.
+
+| 상태 | 어느 함수로 | 문구 |
+|---|---|---|
+| 값이 `1`이었다 | `Write-Ok` | `PYTHONUTF8 already 1` |
+| 값이 `0`이었다 | `Write-Ok` | `PYTHONUTF8 is 0: left alone, python keeps the system code page` |
+| 값이 그 밖이었다 | `Write-Warn2` + `Add-Warning` | `PYTHONUTF8 is '<옛 값>', left alone - python will not default to UTF-8` |
+| 값이 없고, 재니 UTF-8이었다 | `Write-Ok` | `python already defaults to utf-8: PYTHONUTF8 not needed` |
+| 값이 없고, 재니 그 밖이었다 | `Write-Ok` | `python defaults to <잰 값>: PYTHONUTF8 set to 1` |
+| 값이 없고, 재지 못했다 | `Write-Warn2` + `Add-Warning` | `cannot read python default encoding: PYTHONUTF8 not set` |
+| `-WhatIfOnly` | `Write-Warn2` | `[WhatIf] would check the python default encoding and set PYTHONUTF8 if needed` |
+| 쓰기가 던졌다 | `Write-Warn2` + `Add-Warning` | `PYTHONUTF8 not set: <오류>` |
 
 레지스트리 쓰기가 던질 수 있다. 3단계에는 감싸는 `try`가 없으므로 이 호출만 `try/catch`로 감싼다. 잡은 뒤 `Add-Warning`을 남긴다. 설치기에는 잡고 조용히 넘어가는 `catch`도 있지만, 그것은 판정을 위한 탐색이고 이 자리는 사용자 파일을 고치는 자리다. 고치기에 실패한 것은 알려야 한다.
 
@@ -86,7 +99,7 @@ Set-PythonUtf8Environment [-Scope User|Process]
 
 값을 담는 변수는 **지역 변수**다. 3단계와 마무리 요약이 같은 함수 안에 있으므로 스크립트 스코프가 필요 없다. 인증서 요약이 지역 `$doSsl`을 조건식으로 읽는 것과 같은 꼴로 둔다.
 
-값은 `set to 1`·`already 1`·`0 (left alone)`·`'<옛 값>' (left alone)`·`not set (<오류>)` 가운데 하나다. `-WhatIfOnly`면 `not touched`다.
+값은 `set to 1 (was <잰 값>)`·`not needed (already utf-8)`·`already 1`·`0 (left alone)`·`'<옛 값>' (left alone)`·`not set (<사유>)` 가운데 하나다. `-WhatIfOnly`면 `not touched`다.
 
 **리터럴로 박지 않는다.** 요약이 실제 결과와 무관하게 무언가를 주장하면 안 된다. 그것을 어떻게 검사할지는 아래 「검사는 구현에서 확정한다」를 따른다.
 
@@ -118,6 +131,8 @@ Set-PythonUtf8Environment [-Scope User|Process]
 | `0`은 경고로 올리지 않는다 |
 | 마른 실행이 레지스트리를 안 건드린다 |
 | 마무리 요약이 실제 결과를 읽는다 |
+| 재고 나서 세운다 |
+| 못 재면 세우지 않는다 |
 
 기존 테스트가 참고할 꼴을 셋 갖고 있다. 순서를 재는 `$libsPhase.IndexOf(...)` 비교, 마른 실행 가드를 원문에서 보는 `'\$pyDir -and -not \$WhatIfOnly'`, 요약이 조건식을 읽는지 보는 `'Cert variables\s*:\s*\$\(if \(\$doSsl\)'`이다. 셋 다 통과하면서 기능이 없는 구현을 세우기 어렵다.
 

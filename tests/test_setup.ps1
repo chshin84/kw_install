@@ -153,6 +153,20 @@ $u3 = Set-PythonUtf8Environment -Scope 'Process'
 Assert 'a value the user set is never overwritten' ($u3.Changed -eq $false -and $u3.Old -eq '0' -and $env:PYTHONUTF8 -eq '0')
 Remove-Item -Path 'Env:PYTHONUTF8' -ErrorAction SilentlyContinue
 
+# The installer measures before it writes. Measuring has to clear PYTHONUTF8
+# in the child, or a machine that already has it reports utf-8 forever and the
+# check can never see the cp949 it exists to find.
+$pyForEnc = (Get-Command python -ErrorAction SilentlyContinue).Source
+if ($pyForEnc) {
+    Set-Item -Path 'Env:PYTHONUTF8' -Value '1'
+    $encWithVar = Get-PythonDefaultEncoding -PythonExe $pyForEnc
+    Remove-Item -Path 'Env:PYTHONUTF8' -ErrorAction SilentlyContinue
+    Assert 'the measurement ignores an inherited PYTHONUTF8' ($encWithVar -and $encWithVar -ne 'utf-8')
+} else {
+    Assert 'python is on PATH for the encoding probe' $false
+}
+Assert 'a python that is not there measures as unknown' ($null -eq (Get-PythonDefaultEncoding -PythonExe (Join-Path $Tmp 'no-such-python.exe')))
+
 
 Write-Host '--- the curl revocation line (written to a temp file, not the profile) ---'
 # curl is reached by a config file rather than a variable, so it gets its own
@@ -767,19 +781,38 @@ Assert 'the phase sets PYTHONUTF8' ($libsPhase -match 'Set-PythonUtf8Environment
 Assert 'and does it outside the -SkipPythonLibs branch' (
     ($libsPhase.IndexOf('Set-PythonUtf8Environment') -ge 0) -and
     ($libsPhase.IndexOf('Set-PythonUtf8Environment') -lt $libsPhase.IndexOf('if ($SkipPythonLibs)')))
-Assert 'a dry run reports without writing' ($libsPhase -match '\$WhatIfOnly\s*\)\s*\{[^}]*WhatIf\] would set PYTHONUTF8')
+# The dry-run branch has to be the whole thing, not a message beside the write:
+# everything that touches the registry lives in its else.
+$whatIfBranch = [regex]::Match($libsPhase, "(?s)if \(\`$WhatIfOnly\) \{.*?\} else \{")
+Assert 'a dry run reports without writing' (
+    $whatIfBranch.Success -and
+    $whatIfBranch.Value -match '\[WhatIf\] would check the python default encoding' -and
+    $whatIfBranch.Value -notmatch 'Set-PythonUtf8Environment')
+
 # A value we cannot read must reach the closing warning list. Pinned by the one
 # line that puts the old value into the message, so a silent branch cannot pass.
 Assert 'an unrecognised value is carried to the closing warnings' (
     $libsPhase -match "Add-Warning[^
-]*PYTHONUTF8 is '\`$\(\`$utf8\.Old\)'")
+]*PYTHONUTF8 is '\`$utf8Now'")
 # 0 is the documented way to turn this off. Warning about it every run would
 # make the opt-out unusable, so the 0 branch must not add a warning.
-$zeroBranch = [regex]::Match($libsPhase, "(?s)\`$utf8\.Old -eq '0'.*?\}")
+$zeroBranch = [regex]::Match($libsPhase, "(?s)\`$utf8Now -eq '0'.*?\}")
 Assert 'the 0 branch exists' ($zeroBranch.Success)
 Assert 'and does not warn' ($zeroBranch.Value -notmatch 'Add-Warning')
 Assert 'a failed write is reported, not swallowed' (
     $libsPhase -match "(?s)catch\s*\{[^}]*Add-Warning[^}]*PYTHONUTF8 not set")
+# Measure first: the phase asks python what its default is, and only writes when
+# the answer is not utf-8. Pinned by the comparison itself, so a version that
+# measures and then writes regardless does not pass.
+Assert 'the phase measures the default encoding first' (
+    ($libsPhase.IndexOf('Get-PythonDefaultEncoding') -ge 0) -and
+    ($libsPhase.IndexOf('Get-PythonDefaultEncoding') -lt $libsPhase.IndexOf('Set-PythonUtf8Environment')))
+Assert 'and only writes when the default is not utf-8' ($libsPhase -match "-ne 'utf-8'")
+# A machine we cannot measure keeps its own settings. Guessing here would edit a
+# user environment variable on no evidence.
+$unknownBranch = [regex]::Match($libsPhase, "(?s)\`$null -eq \`$pyEnc.*?\}")
+Assert 'an unmeasurable machine is left alone' ($unknownBranch.Success -and $unknownBranch.Value -match 'Add-Warning' -and $unknownBranch.Value -notmatch 'Set-PythonUtf8Environment')
+
 
 
 Write-Host '--- requirements.txt ---'
